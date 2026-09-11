@@ -119,7 +119,7 @@ $('browseButton').onclick=async()=>{
   if(state.busy)return;
   $('browseButton').disabled=true;$('sourceLabel').textContent='等待系统窗口…';status('请选择模型文件');
   try{
-    const model=await request('/api/pick-model',{},600000);
+    const model=await request('/api/pick-model',{},610000);
     if(model.cancelled){status('已取消选择');return;}
     chooseModel(model);
   }catch(e){

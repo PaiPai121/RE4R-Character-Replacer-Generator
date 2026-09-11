@@ -44,16 +44,19 @@ internal sealed class LauncherForm : Form
     private readonly Label statusLabel = new();
     private readonly TextBox logBox = new();
     private readonly NotifyIcon trayIcon = new();
+    private readonly System.Windows.Forms.Timer pickerTimer = new() { Interval = 150 };
     private Process? serverProcess;
     private Uri? serverUri;
     private bool closing;
     private bool allowExit;
+    private bool pickerBusy;
     private readonly bool lifecycleTest;
 
     internal bool LifecycleTestPassed { get; private set; }
 
     private string ConfigPath => Path.Combine(root, "replacer-paths.json");
     private string StatePath => Path.Combine(root, "replacer-server.json");
+    private string PickerDirectory => Path.Combine(root, "replacer_app", "data", "native-picker");
 
     public LauncherForm(bool lifecycleTest = false)
     {
@@ -68,6 +71,7 @@ internal sealed class LauncherForm : Form
         Font = new Font("Segoe UI", 10F);
         BuildInterface();
         ConfigureTray();
+        ConfigurePickerBroker();
         LoadPaths();
         FormClosing += LauncherFormClosing;
         if (lifecycleTest)
@@ -75,6 +79,54 @@ internal sealed class LauncherForm : Form
             Opacity = 0;
             ShowInTaskbar = false;
             Shown += RunLifecycleSelfTest;
+        }
+    }
+
+    private void ConfigurePickerBroker()
+    {
+        Directory.CreateDirectory(PickerDirectory);
+        foreach (var pattern in new[] { "*.request.json", "*.result.json", "*.ack" })
+            foreach (var path in Directory.EnumerateFiles(PickerDirectory, pattern))
+                try { File.Delete(path); } catch (IOException) { }
+        pickerTimer.Tick += ProcessPickerRequests;
+        pickerTimer.Start();
+    }
+
+    private void ProcessPickerRequests(object? sender, EventArgs e)
+    {
+        if (pickerBusy) return;
+        string? requestPath;
+        try { requestPath = Directory.EnumerateFiles(PickerDirectory, "*.request.json").OrderBy(File.GetCreationTimeUtc).FirstOrDefault(); }
+        catch (IOException) { return; }
+        if (requestPath is null) return;
+
+        pickerBusy = true;
+        var requestName = Path.GetFileName(requestPath);
+        var requestId = requestName[..^".request.json".Length];
+        var resultPath = Path.Combine(PickerDirectory, requestId + ".result.json");
+        var acknowledgementPath = Path.Combine(PickerDirectory, requestId + ".ack");
+        var wasVisible = Visible;
+        var previousTopMost = TopMost;
+        try
+        {
+            File.WriteAllText(acknowledgementPath, "ready", new UTF8Encoding(false));
+            if (!lifecycleTest && !wasVisible) ShowLauncher();
+            TopMost = true;
+            Activate();
+            BringToFront();
+            NativeModelPicker.HandleBrokerRequest(requestPath, resultPath, this);
+        }
+        catch (Exception ex)
+        {
+            AppendLog("模型文件窗口失败：" + ex.Message);
+            try { File.WriteAllText(resultPath, JsonSerializer.Serialize(new { ok = false, error = ex.Message }), new UTF8Encoding(false)); } catch { }
+        }
+        finally
+        {
+            try { File.Delete(requestPath); } catch (IOException) { }
+            TopMost = previousTopMost;
+            if (!lifecycleTest && !wasVisible && serverProcess is { HasExited: false }) HideToTray(showNotice: false);
+            pickerBusy = false;
         }
     }
 
@@ -327,6 +379,7 @@ internal sealed class LauncherForm : Form
         info.Environment["REPLACER_OPEN_BROWSER"] = "0";
         info.Environment["REPLACER_PORT"] = PreferredPort.ToString();
         info.Environment["REPLACER_SERVER_STATE"] = StatePath;
+        info.Environment["REPLACER_NATIVE_PICKER_DIR"] = PickerDirectory;
         return info;
     }
 
@@ -417,17 +470,28 @@ internal sealed class LauncherForm : Form
         {
             await StartServerAsync();
             var started = serverProcess is { HasExited: false } && serverUri is not null;
+            var pickerPassed = false;
+            var pickerFixture = Path.Combine(PickerDirectory, "lifecycle-picker-test.fbx");
             if (started)
             {
+                File.WriteAllBytes(pickerFixture, []);
+                Environment.SetEnvironmentVariable("REPLACER_PICK_MODEL_TEST_PATH", pickerFixture);
+                using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+                using var response = await client.PostAsync(new Uri(serverUri!, "/api/pick-model"), new StringContent("{}", Encoding.UTF8, "application/json"));
+                using var pickerResponse = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+                pickerPassed = response.IsSuccessStatusCode
+                    && pickerResponse.RootElement.TryGetProperty("path", out var selectedPath)
+                    && string.Equals(Path.GetFullPath(selectedPath.GetString() ?? ""), Path.GetFullPath(pickerFixture), StringComparison.OrdinalIgnoreCase);
                 Close();
                 await Task.Delay(300);
-                LifecycleTestPassed = serverProcess is { HasExited: false } && !Visible && trayIcon.Visible;
+                LifecycleTestPassed = pickerPassed && serverProcess is { HasExited: false } && !Visible && trayIcon.Visible;
             }
             if (!string.IsNullOrWhiteSpace(reportPath))
             {
                 var report = JsonSerializer.Serialize(new {
                     passed = LifecycleTestPassed,
                     serverStarted = started,
+                    nativePickerBrokerPassed = pickerPassed,
                     serviceAliveAfterWindowClose = serverProcess is { HasExited: false },
                     launcherHidden = !Visible,
                     trayVisible = trayIcon.Visible,
@@ -437,6 +501,8 @@ internal sealed class LauncherForm : Form
         }
         finally
         {
+            Environment.SetEnvironmentVariable("REPLACER_PICK_MODEL_TEST_PATH", null);
+            try { File.Delete(Path.Combine(PickerDirectory, "lifecycle-picker-test.fbx")); } catch (IOException) { }
             allowExit = true;
             Close();
         }
@@ -478,6 +544,8 @@ internal sealed class LauncherForm : Form
     {
         if (disposing)
         {
+            pickerTimer.Stop();
+            pickerTimer.Dispose();
             trayIcon.Visible = false;
             trayIcon.ContextMenuStrip?.Dispose();
             trayIcon.Dispose();

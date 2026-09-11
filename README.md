@@ -7,6 +7,12 @@ The current preview supports automatic runtime-path discovery with manual overri
 > [!IMPORTANT]
 > This is preview software. Keep backups and inspect generated mods before distributing them. You must own the game and provide your own model files. No game assets or third-party character models are included here.
 
+## 0.4.5 preview fixes
+
+- The Windows model picker is now owned and displayed by the already-running launcher on its UI thread, so it cannot be stranded behind the browser by a background Blender process.
+- A launcher acknowledgement handshake fails quickly when the native picker is unavailable instead of leaving the page waiting indefinitely.
+- The packaged lifecycle test now covers the complete browser API to launcher picker-broker path.
+
 ## 0.4.4 preview fixes
 
 - Blender 5.2-compatible helper material creation; node lookup no longer depends on localized display names.

@@ -503,6 +503,38 @@ def browse_model_directory(raw_path=''):
 
 
 def pick_model_with_native_dialog():
+    broker_value = os.environ.get('REPLACER_NATIVE_PICKER_DIR', '').strip()
+    if broker_value:
+        broker = Path(broker_value).resolve()
+        try:
+            broker.relative_to(APP_DATA.resolve())
+        except ValueError as exc:
+            raise RuntimeError('系统文件选择器请求目录无效') from exc
+        broker.mkdir(parents=True, exist_ok=True)
+        request_id = uuid.uuid4().hex
+        request_path = broker / f'{request_id}.request.json'
+        result_path = broker / f'{request_id}.result.json'
+        acknowledgement_path = broker / f'{request_id}.ack'
+        temporary = broker / f'{request_id}.{os.getpid()}.tmp'
+        try:
+            temporary.write_text(json.dumps({'initial': str(default_model_directory())}, ensure_ascii=False), encoding='utf-8')
+            os.replace(temporary, request_path)
+            acknowledgement_deadline = time.monotonic() + 5
+            while not acknowledgement_path.is_file():
+                if time.monotonic() >= acknowledgement_deadline:
+                    raise RuntimeError('主程序未能打开系统文件窗口，请确认启动器仍在运行')
+                time.sleep(.05)
+            result_deadline = time.monotonic() + 600
+            while not result_path.is_file():
+                if time.monotonic() >= result_deadline:
+                    raise RuntimeError('系统文件窗口等待超时')
+                time.sleep(.05)
+            result = json.loads(result_path.read_text(encoding='utf-8-sig'))
+            return validate_native_picker_result(result)
+        finally:
+            for path in (temporary, request_path, result_path, acknowledgement_path):
+                path.unlink(missing_ok=True)
+
     launcher = PROJECT / 'RE4RCharacterReplacer.exe'
     if not launcher.is_file():
         raise FileNotFoundError('系统文件选择器只在完整 EXE 发布包中可用')
@@ -511,21 +543,25 @@ def pick_model_with_native_dialog():
     try:
         process = subprocess.run(
             [str(launcher), '--pick-model', '--output', str(result_path), '--initial', str(default_model_directory())],
-            cwd=str(PROJECT), timeout=600,
+            cwd=str(PROJECT), timeout=180,
         )
         if not result_path.is_file():
             raise RuntimeError(f'系统文件选择器未返回结果（退出代码 {process.returncode}）')
         result = json.loads(result_path.read_text(encoding='utf-8-sig'))
-        if not result.get('ok'):
-            raise RuntimeError(result.get('error') or '系统文件选择器启动失败')
-        if result.get('cancelled'):
-            return {'cancelled': True}
-        selected = Path(result.get('path') or '').resolve(strict=True)
-        if not selected.is_file() or selected.suffix.lower() not in {'.pmx', '.pmd', '.fbx', '.blend'}:
-            raise ValueError('请选择 PMX、PMD、FBX 或 BLEND 模型文件')
-        return {'cancelled': False, 'path': str(selected), 'name': selected.name, 'directory': str(selected.parent)}
+        return validate_native_picker_result(result)
     finally:
         result_path.unlink(missing_ok=True)
+
+
+def validate_native_picker_result(result):
+    if not result.get('ok'):
+        raise RuntimeError(result.get('error') or '系统文件选择器启动失败')
+    if result.get('cancelled'):
+        return {'cancelled': True}
+    selected = Path(result.get('path') or '').resolve(strict=True)
+    if not selected.is_file() or selected.suffix.lower() not in {'.pmx', '.pmd', '.fbx', '.blend'}:
+        raise ValueError('请选择 PMX、PMD、FBX 或 BLEND 模型文件')
+    return {'cancelled': False, 'path': str(selected), 'name': selected.name, 'directory': str(selected.parent)}
 
 
 def run_refresh_job(job_id, project):

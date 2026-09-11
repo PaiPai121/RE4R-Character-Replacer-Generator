@@ -8,8 +8,8 @@
     <ApplicationIcon>assets\re4r-replacer.ico</ApplicationIcon>
     <AssemblyName>RE4RCharacterReplacer</AssemblyName>
     <RootNamespace>RE4RCharacterReplacer</RootNamespace>
-    <Version>0.4.4</Version>
-    <FileVersion>0.4.4.0</FileVersion>
+    <Version>0.4.5</Version>
+    <FileVersion>0.4.5.0</FileVersion>
     <Product>RE4R Character Replacer Generator</Product>
     <Description>Portable launcher for the RE4R Character Replacer Generator.</Description>
   </PropertyGroup>

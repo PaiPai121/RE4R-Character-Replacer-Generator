@@ -13,35 +13,8 @@ internal static class NativeModelPicker
         if (string.IsNullOrWhiteSpace(outputPath)) return 2;
         try
         {
-            var testPath = Environment.GetEnvironmentVariable("REPLACER_PICK_MODEL_TEST_PATH");
-            if (!string.IsNullOrWhiteSpace(testPath))
-                return CompleteSelection(outputPath, testPath, saveDirectory: false);
-
-            using var dialog = new OpenFileDialog {
-                Title = "选择人物模型",
-                Filter = "支持的人物模型 (*.pmx;*.pmd;*.fbx;*.blend)|*.pmx;*.pmd;*.fbx;*.blend|MikuMikuDance 模型 (*.pmx;*.pmd)|*.pmx;*.pmd|FBX 模型 (*.fbx)|*.fbx|Blender 文件 (*.blend)|*.blend",
-                CheckFileExists = true,
-                Multiselect = false,
-                RestoreDirectory = true,
-                AddExtension = true,
-            };
-            var initial = ChooseInitialDirectory(Option(args, "--initial"));
-            if (initial is not null) dialog.InitialDirectory = initial;
-            using var owner = new Form {
-                Text = "RE4R Character Replacer", ShowInTaskbar = false, TopMost = true,
-                FormBorderStyle = FormBorderStyle.None, StartPosition = FormStartPosition.CenterScreen,
-                Size = new Size(1, 1), Opacity = 0,
-            };
-            owner.Show();
-            owner.Activate();
-            var dialogResult = dialog.ShowDialog(owner);
-            owner.Close();
-            if (dialogResult != DialogResult.OK)
-            {
-                WriteResult(outputPath, new { ok = true, cancelled = true });
-                return 0;
-            }
-            return CompleteSelection(outputPath, dialog.FileName);
+            WriteResult(outputPath, PickModel(Option(args, "--initial"), owner: null));
+            return 0;
         }
         catch (Exception ex)
         {
@@ -50,7 +23,42 @@ internal static class NativeModelPicker
         }
     }
 
-    private static int CompleteSelection(string outputPath, string selectedPath, bool saveDirectory = true)
+    internal static void HandleBrokerRequest(string requestPath, string resultPath, IWin32Window owner)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(File.ReadAllText(requestPath));
+            var initial = document.RootElement.TryGetProperty("initial", out var value) ? value.GetString() : null;
+            WriteResult(resultPath, PickModel(initial, owner));
+        }
+        catch (Exception ex)
+        {
+            WriteResult(resultPath, new Dictionary<string, object?> { ["ok"] = false, ["error"] = ex.Message });
+        }
+    }
+
+    private static Dictionary<string, object?> PickModel(string? requestedDirectory, IWin32Window? owner)
+    {
+        var testPath = Environment.GetEnvironmentVariable("REPLACER_PICK_MODEL_TEST_PATH");
+        if (!string.IsNullOrWhiteSpace(testPath)) return CompleteSelection(testPath, saveDirectory: false);
+
+        using var dialog = new OpenFileDialog {
+            Title = "选择人物模型",
+            Filter = "支持的人物模型 (*.pmx;*.pmd;*.fbx;*.blend)|*.pmx;*.pmd;*.fbx;*.blend|MikuMikuDance 模型 (*.pmx;*.pmd)|*.pmx;*.pmd|FBX 模型 (*.fbx)|*.fbx|Blender 文件 (*.blend)|*.blend",
+            CheckFileExists = true,
+            Multiselect = false,
+            RestoreDirectory = true,
+            AddExtension = true,
+        };
+        var initial = ChooseInitialDirectory(requestedDirectory);
+        if (initial is not null) dialog.InitialDirectory = initial;
+        var dialogResult = owner is null ? dialog.ShowDialog() : dialog.ShowDialog(owner);
+        if (dialogResult != DialogResult.OK)
+            return new Dictionary<string, object?> { ["ok"] = true, ["cancelled"] = true };
+        return CompleteSelection(dialog.FileName);
+    }
+
+    private static Dictionary<string, object?> CompleteSelection(string selectedPath, bool saveDirectory = true)
     {
         var fullPath = Path.GetFullPath(selectedPath);
         if (!File.Exists(fullPath)) throw new FileNotFoundException("选择的模型文件不存在。", fullPath);
@@ -62,8 +70,10 @@ internal static class NativeModelPicker
             try { SaveLastDirectory(directory); }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException) { }
         }
-        WriteResult(outputPath, new { ok = true, cancelled = false, path = fullPath, name = Path.GetFileName(fullPath), directory });
-        return 0;
+        return new Dictionary<string, object?> {
+            ["ok"] = true, ["cancelled"] = false, ["path"] = fullPath,
+            ["name"] = Path.GetFileName(fullPath), ["directory"] = directory,
+        };
     }
 
     private static string? ChooseInitialDirectory(string? requested)
