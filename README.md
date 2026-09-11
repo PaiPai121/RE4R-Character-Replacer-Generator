@@ -14,6 +14,9 @@ The current preview supports automatic runtime-path discovery with manual overri
 - A stalled character now fails after 180 seconds with its name and actionable Blender-version guidance.
 - Reference-profile generation now imports only the RE Engine armature instead of an unnecessary full high-poly body mesh.
 - Blender 5.1 is rejected during startup because its known mesh import/export regression can make both preparation and later builds appear frozen.
+- Deep build intermediates now use a short per-user cache under `%LOCALAPPDATA%\RE4R-Replacer\jobs`, preventing `WinError 206` even when the application was extracted into a long folder path.
+- Build IDs are shortened on disk, while download access remains restricted to the application work directory and this dedicated build cache.
+- Long model conversion and validation stages now publish an elapsed-time heartbeat to the task panel even while Blender or an addon buffers its detailed console output.
 
 ## 0.4.5 preview fixes
 

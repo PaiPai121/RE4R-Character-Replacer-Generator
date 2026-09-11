@@ -12,7 +12,7 @@ import hashlib
 import webbrowser
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from pipeline import run as build_pipeline
+from pipeline import build_root as build_job_root, run as build_pipeline
 import game_resources
 from runtime_paths import find_blender, find_mmd_tools
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -88,6 +88,22 @@ def json_response(handler, data, status=200):
     handler.send_header("Content-Length", str(len(payload)))
     handler.end_headers()
     handler.wfile.write(payload)
+
+
+def resolve_download_path(raw_path):
+    resolved = Path(raw_path).resolve()
+    roots = ((PROJECT / 'work').resolve(), build_job_root())
+    if not any(_is_relative_to(resolved, root) for root in roots):
+        raise ValueError('File is outside project work areas')
+    return resolved
+
+
+def _is_relative_to(path, root):
+    try:
+        path.relative_to(root)
+        return True
+    except ValueError:
+        return False
 
 
 def error_response(handler, message, status=400):
@@ -722,8 +738,7 @@ class Handler(SimpleHTTPRequestHandler):
             raw_path = (query.get("path") or [""])[0]
             path = Path(unquote(raw_path))
             try:
-                resolved = path.resolve()
-                resolved.relative_to((PROJECT/'work').resolve())
+                resolved = resolve_download_path(path)
             except Exception:
                 error_response(self, "File is outside project", status=403)
                 return

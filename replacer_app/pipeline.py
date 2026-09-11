@@ -1,6 +1,7 @@
 """Isolated builds: the saved pose file is the only source of geometry."""
 import hashlib
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -11,6 +12,35 @@ from pathlib import Path
 from fluffy_package import package_name, package_directory
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def build_root():
+    configured = os.environ.get('REPLACER_BUILD_ROOT')
+    if configured:
+        root = Path(configured).expanduser()
+    elif os.name == 'nt' and os.environ.get('LOCALAPPDATA'):
+        root = Path(os.environ['LOCALAPPDATA']) / 'RE4R-Replacer' / 'jobs'
+    else:
+        root = ROOT / 'work' / 'replacer_jobs'
+    if not root.is_absolute() or str(root).startswith(('\\\\', '//')):
+        raise ValueError('构建缓存必须位于本机磁盘的绝对路径')
+    root = root.resolve()
+    if os.name == 'nt' and len(str(root)) > 120:
+        raise ValueError('构建缓存路径过长，请设置更短的 REPLACER_BUILD_ROOT')
+    return root
+
+
+def create_build_directory():
+    root = build_root()
+    root.mkdir(parents=True, exist_ok=True)
+    for _ in range(20):
+        work = root / uuid.uuid4().hex[:8]
+        try:
+            work.mkdir()
+            return work
+        except FileExistsError:
+            continue
+    raise RuntimeError('无法创建唯一的构建任务目录')
 
 
 def digest(path):
@@ -25,10 +55,14 @@ def run_blender_stage(blender,script,request,work,job,stage):
                                     '--',str(request)],cwd=ROOT,stdout=out,stderr=subprocess.STDOUT)
         started = time.monotonic()
         while process.poll() is None:
-            if time.monotonic()-started > 1800:
+            elapsed = int(time.monotonic() - started)
+            if elapsed > 1800:
                 process.kill();process.wait()
                 raise TimeoutError(f'构建超时，现场保留：{work}')
-            job['stdout'] = f'任务目录：{work}\n'+log.read_text(encoding='utf-8',errors='replace')[-3000:]
+            label = '正在构建并转换模型' if stage == 'build' else '正在进行独立导出验证'
+            job['stage'] = stage
+            job['elapsedSeconds'] = elapsed
+            job['stdout'] = f'{label} · 已运行 {elapsed} 秒\n任务目录：{work}\n'+log.read_text(encoding='utf-8',errors='replace')[-2800:]
             time.sleep(1)
     if process.returncode != 0:
         failure = work/'failure.json'
@@ -44,8 +78,7 @@ def run(project, blender, job):
     profile = project['targetProfile']
     if not profile.get('bodySlots'):
         raise ValueError('该角色缺少完整资源映射，未生成 Mod')
-    work = ROOT / 'work' / 'replacer_jobs' / uuid.uuid4().hex
-    work.mkdir(parents=True)
+    work = create_build_directory()
     snapshot = work / 'input.blend'
     before = digest(pose)
     shutil.copy2(pose, snapshot)

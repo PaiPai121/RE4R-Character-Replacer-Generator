@@ -57,6 +57,12 @@ internal sealed class LauncherForm : Form
     private string ConfigPath => Path.Combine(root, "replacer-paths.json");
     private string StatePath => Path.Combine(root, "replacer-server.json");
     private string PickerDirectory => Path.Combine(root, "replacer_app", "data", "native-picker");
+    private string BuildDirectory {
+        get {
+            var localData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            return Path.Combine(string.IsNullOrWhiteSpace(localData) ? Path.GetTempPath() : localData, "RE4R-Replacer", "jobs");
+        }
+    }
 
     public LauncherForm(bool lifecycleTest = false)
     {
@@ -383,6 +389,7 @@ internal sealed class LauncherForm : Form
         info.Environment["REPLACER_PORT"] = PreferredPort.ToString();
         info.Environment["REPLACER_SERVER_STATE"] = StatePath;
         info.Environment["REPLACER_NATIVE_PICKER_DIR"] = PickerDirectory;
+        info.Environment["REPLACER_BUILD_ROOT"] = BuildDirectory;
         return info;
     }
 

@@ -90,6 +90,9 @@ if ($Configure) {
 
 $env:REPLACER_BLENDER = $blender
 if ($game) { $env:RE4_GAME_DIR = $game }
+if (-not $env:REPLACER_BUILD_ROOT -and $env:LOCALAPPDATA) {
+    $env:REPLACER_BUILD_ROOT = Join-Path $env:LOCALAPPDATA 'RE4R-Replacer\jobs'
+}
 $bundledMmd = Join-Path $PSScriptRoot 'vendor\blender_mmd_tools'
 if (-not $env:REPLACER_MMD_TOOLS -and (Test-Path -LiteralPath (Join-Path $bundledMmd 'mmd_tools\__init__.py'))) {
     $env:REPLACER_MMD_TOOLS = $bundledMmd

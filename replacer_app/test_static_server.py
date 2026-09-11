@@ -1,5 +1,8 @@
+import tempfile
 import threading
 import unittest
+from pathlib import Path
+from unittest.mock import patch
 from urllib.request import urlopen
 
 import server
@@ -34,6 +37,23 @@ class StaticServerTests(unittest.TestCase):
             duplicate = server.ExclusiveThreadingHTTPServer(
                 ('127.0.0.1', self.httpd.server_port), server.Handler)
             duplicate.server_close()
+
+    def test_download_path_accepts_only_project_and_short_build_roots(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            project = root / 'project'
+            build = root / 'short-jobs'
+            outside = root / 'private.txt'
+            project_file = project / 'work' / 'preview.png'
+            build_file = build / '12345678' / 'output.zip'
+            for path in (outside, project_file, build_file):
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.touch()
+            with patch.object(server, 'PROJECT', project), patch.object(server, 'build_job_root', return_value=build.resolve()):
+                self.assertEqual(server.resolve_download_path(project_file), project_file.resolve())
+                self.assertEqual(server.resolve_download_path(build_file), build_file.resolve())
+                with self.assertRaises(ValueError):
+                    server.resolve_download_path(outside)
 
 
 if __name__ == '__main__':

@@ -1,4 +1,5 @@
 import json
+import os
 import tempfile
 import unittest
 import zipfile
@@ -16,10 +17,14 @@ class PipelineTests(unittest.TestCase):
         self.pose.write_bytes(b'actual user saved pose')
         self.project = {'files': {'poseBlend': str(self.pose)}, 'sourceModel': 'custom.fbx',
                         'targetProfile': {'bodySlots': {'cha000':['00']}}}
+        self.build_root = self.root / 'j'
         self.root_patch = patch.object(pipeline, 'ROOT', self.root)
         self.root_patch.start()
+        self.environment_patch = patch.dict(os.environ, {'REPLACER_BUILD_ROOT': str(self.build_root)})
+        self.environment_patch.start()
 
     def tearDown(self):
+        self.environment_patch.stop()
         self.root_patch.stop()
         self.temp.cleanup()
 
@@ -39,9 +44,18 @@ class PipelineTests(unittest.TestCase):
                 pipeline.run(self.project, 'unused', {})
         self.assertEqual(old.read_bytes(), b'old artifact')
         self.assertFalse(list((self.root/'work').rglob('*.zip')))
-        request = json.loads(next((self.root/'work').rglob('request.json')).read_text())
+        request = json.loads(next(self.build_root.rglob('request.json')).read_text())
         self.assertEqual(Path(request['input']).read_bytes(), self.pose.read_bytes())
         self.assertEqual(Path(request['originalBlend']).resolve(), self.pose.resolve())
+
+    def test_intermediate_build_path_is_short_even_when_project_root_is_deep(self):
+        deep_root = self.root / ('very-long-release-directory-' * 5)
+        with patch.object(pipeline, 'ROOT', deep_root):
+            work = pipeline.create_build_directory()
+        self.assertEqual(work.parent, self.build_root.resolve())
+        self.assertEqual(len(work.name), 8)
+        representative = work / 'package/natives/stm/_Chainsaw/Character/ch/Replacer' / work.name / 'Material_000_ALBD.tex.143221013'
+        self.assertLess(len(str(representative)), 240)
 
     def test_pose_changed_during_snapshot_is_rejected(self):
         with patch.object(pipeline, 'digest', side_effect=['first','second']):
