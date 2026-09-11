@@ -9,6 +9,16 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def blender_version_problem(version):
+    version = tuple(int(value) for value in version[:3])
+    if version < (4, 3, 2):
+        return '需要 Blender 4.3.2 或更新版本。'
+    if version[:2] == (5, 1):
+        return ('Blender 5.1 存在已知的网格导入/导出严重性能故障，可能导致任务长时间无响应。'
+                '请改用 Blender 5.2 LTS 或 Blender 5.0。')
+    return None
+
+
 def _saved_paths():
     config = ROOT / 'replacer-paths.json'
     try:

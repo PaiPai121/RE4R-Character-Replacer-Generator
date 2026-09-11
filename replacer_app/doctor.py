@@ -2,9 +2,12 @@
 import os
 import sys
 from pathlib import Path
+import bpy
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from runtime_paths import find_blender, find_game, find_mmd_tools, find_resource_list
+from runtime_paths import blender_version_problem, find_blender, find_game, find_mmd_tools, find_resource_list
 ROOT = Path(__file__).resolve().parents[1]
+version_problem = blender_version_problem(bpy.app.version)
+print(('UNSUPPORTED ' + version_problem) if version_problem else 'OK Blender version: ' + bpy.app.version_string)
 checks = {
     'Blender':find_blender(),
     'MMD importer':find_mmd_tools()/'mmd_tools/__init__.py',
@@ -17,4 +20,4 @@ checks = {
 for name,path in checks.items():print(('OK ' if path.is_file() else 'MISSING ')+name+': '+str(path))
 game = find_game()
 print(('OK ' if (game/'re_chunk_000.pak').is_file() else 'OPTIONAL MISSING ')+'Game: '+str(game))
-sys.exit(0 if all(path.is_file() for path in checks.values()) else 1)
+sys.exit(0 if not version_problem and all(path.is_file() for path in checks.values()) else 1)

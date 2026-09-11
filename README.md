@@ -12,6 +12,8 @@ The current preview supports automatic runtime-path discovery with manual overri
 - Character reference preparation is split into independently bounded per-character Blender runs instead of one silent ten-minute process.
 - Scan progress identifies the current extraction batch and character; completed character profiles are retained and reused after a retry when the game PAK fingerprint is unchanged.
 - A stalled character now fails after 180 seconds with its name and actionable Blender-version guidance.
+- Reference-profile generation now imports only the RE Engine armature instead of an unnecessary full high-poly body mesh.
+- Blender 5.1 is rejected during startup because its known mesh import/export regression can make both preparation and later builds appear frozen.
 
 ## 0.4.5 preview fixes
 
@@ -33,7 +35,7 @@ The current preview supports automatic runtime-path discovery with manual overri
 
 - Windows 10 or 11, 64-bit
 - Resident Evil 4 (2023), Steam version
-- Blender 4.2 through 5.2; Blender 5.2 is covered by the compatibility tests in this revision
+- Blender 4.3.2 through 5.0, or Blender 5.2 LTS; Blender 5.1 is explicitly unsupported because of its known mesh import/export performance regression
 - Fluffy Mod Manager for installing the generated mod
 
 For end-user setup and usage, see [RELEASE_README.md](RELEASE_README.md).

@@ -103,8 +103,11 @@ def prepare(character_id=None, extract_resources=True):
         opts = dict(clearScene=True,createCollections=True,loadMaterials=False,loadMDFData=False,
                     loadShellFur=False,loadUnusedTextures=False,loadUnusedProps=False,useBackfaceCulling=False,
                     reloadCachedTextures=False,mdfPath='',importAllLODs=False,importBlendShapes=False,
-                    rotate90=True,mergeArmature='',importArmatureOnly=False,mergeGroups=False,
+                    rotate90=True,mergeArmature='',importArmatureOnly=True,mergeGroups=False,
                     importShadowMeshes=False,importOcclusionMeshes=False,importBoundingBoxes=False)
+        # Profile generation only needs the reference skeleton. Importing the full
+        # high-poly body here was unnecessary and can hit Blender 5.1's severe mesh
+        # import regression before the first progress result is written.
         addon.importREMeshFile(str(reference/primary),opts)
         arm = next(o for o in bpy.data.objects if o.type=='ARMATURE')
         required = {s+'_'+p for s in ('L','R') for p in ('UpperArm','Forearm','Hand','Thigh','Shin','Foot')}

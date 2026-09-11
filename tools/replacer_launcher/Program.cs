@@ -314,7 +314,10 @@ internal sealed class LauncherForm : Form
             AppendLog(doctor.Output);
             SetStatus("依赖检查失败", Color.FromArgb(224, 84, 84));
             startButton.Enabled = true;
-            MessageBox.Show(this, "Blender 依赖检查失败。请查看窗口下方日志并确认路径。", Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
+            var message = doctor.Output.Contains("Blender 5.1", StringComparison.OrdinalIgnoreCase)
+                ? "Blender 5.1 存在已知的网格导入/导出卡顿故障，不能用于此工具。请安装并选择 Blender 5.2 LTS 或 Blender 5.0。"
+                : "Blender 依赖检查失败。请查看窗口下方日志并确认路径。";
+            MessageBox.Show(this, message, Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
             return;
         }
         AppendLog(doctor.Output);

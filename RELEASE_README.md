@@ -6,6 +6,8 @@
 - 资源提取和六个角色配置现在分阶段显示进度；每个角色由独立 Blender 进程处理，单项 180 秒未完成会明确指出角色和解决建议。
 - 已完成角色的配置会按游戏 PAK 指纹缓存；同一游戏版本重试时自动跳过，不再从第一个角色重新开始。
 - 配置文件采用原子写入，并在标记完成前检查骨架、材质和隐藏网格输出是否齐全，避免把中断产生的半成品当成有效缓存。
+- 角色配置只导入实际需要的 RE Engine 骨架，不再无意义地导入完整高面数身体网格，从源头移除该准备阶段的主要卡顿点。
+- Blender 5.1 存在上游已确认的网格导入/导出严重性能故障；启动器现在会在启动服务前直接拦截，并要求改用 Blender 5.2 LTS 或 5.0。
 
 ## 0.4.5 修复
 
@@ -40,7 +42,7 @@
 
 - Windows 10/11 x64
 - Steam 版《Resident Evil 4 (2023)》的合法本地安装
-- Blender 4.2 或更新版本（当前开发验证使用 Blender 5.2 LTS；RE Mesh Editor 上游特别提示 Blender 5.1 存在性能问题）
+- Blender 4.3.2–5.0，或 Blender 5.2 LTS（不支持 Blender 5.1；该版本存在上游已确认的网格导入/导出严重性能故障）
 - 自备 PMX、PMD、FBX 或 BLEND 格式的绑定人物模型，并确认你有权使用和发布该模型及贴图
 - Fluffy Mod Manager（用于安装工具生成的 Mod ZIP）
 
@@ -87,4 +89,4 @@ $env:RE4_GAME_DIR = 'D:\SteamLibrary\steamapps\common\RESIDENT EVIL 4  BIOHAZARD
 
 ## English quick start
 
-This is an experimental local generator, not a character skin mod. It contains no character models, extracted game assets, or prebuilt mods. Install Blender 4.2 or newer (currently tested with 5.2 LTS), extract the archive, run `RE4RCharacterReplacer.exe`, select Blender and your legally installed Steam copy of RE4 (2023), then start the generator. The launcher automatically chooses a free local port. Select a rigged model you are allowed to use, review the pose, and generate a Fluffy Mod Manager ZIP. Leon and Ashley have full application-path regression coverage; other targets remain experimental. Always test generated files in game before publishing.
+This is an experimental local generator, not a character skin mod. It contains no character models, extracted game assets, or prebuilt mods. Install Blender 4.3.2–5.0 or Blender 5.2 LTS (Blender 5.1 is blocked because of its known mesh I/O performance regression), extract the archive, run `RE4RCharacterReplacer.exe`, select Blender and your legally installed Steam copy of RE4 (2023), then start the generator. The launcher automatically chooses a free local port. Select a rigged model you are allowed to use, review the pose, and generate a Fluffy Mod Manager ZIP. Leon and Ashley have full application-path regression coverage; other targets remain experimental. Always test generated files in game before publishing.
