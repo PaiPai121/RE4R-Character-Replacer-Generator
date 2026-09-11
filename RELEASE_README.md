@@ -1,4 +1,11 @@
-# RE4R Character Replacer Generator 0.4.5-preview
+# RE4R Character Replacer Generator 0.4.6-preview
+
+## 0.4.6 修复
+
+- 修复首次扫描在 `prepare_character_profiles.py` 中静默等待 600 秒、超时后全部重来的问题。
+- 资源提取和六个角色配置现在分阶段显示进度；每个角色由独立 Blender 进程处理，单项 180 秒未完成会明确指出角色和解决建议。
+- 已完成角色的配置会按游戏 PAK 指纹缓存；同一游戏版本重试时自动跳过，不再从第一个角色重新开始。
+- 配置文件采用原子写入，并在标记完成前检查骨架、材质和隐藏网格输出是否齐全，避免把中断产生的半成品当成有效缓存。
 
 ## 0.4.5 修复
 

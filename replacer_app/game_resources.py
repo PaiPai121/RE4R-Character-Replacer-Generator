@@ -117,7 +117,7 @@ def scan(game=DEFAULT_GAME, progress=None):
     return data
 
 
-def extract(data, paths, destination):
+def extract(data, paths, destination, progress=None):
     destination = Path(destination).resolve()
     destination.relative_to((ROOT/'work').resolve())
     groups = {}
@@ -129,13 +129,18 @@ def extract(data, paths, destination):
         if entry['size'] > 256*1024*1024:
             raise ValueError('单个参考资源超出大小限制')
         groups.setdefault(entry['pak'],[]).append(path)
-    for pak, entries in groups.items():
-        for start in range(0,len(entries),60):
-            batch = entries[start:start+60]
+    batches = [(pak, entries[start:start+60]) for pak, entries in groups.items()
+               for start in range(0,len(entries),60)]
+    for index, (pak, batch) in enumerate(batches, 1):
+        if progress is not None:
+            progress(index, len(batches), pak)
+        try:
             process = subprocess.run([str(HELPER),str(Path(data['game'])/pak),str(destination),*batch],
                                      capture_output=True,text=True,timeout=180)
-            if process.returncode != 0 or any(not (destination/p).is_file() for p in batch):
-                raise RuntimeError('参考资源提取失败：'+(process.stderr or process.stdout)[-1000:])
+        except subprocess.TimeoutExpired as exc:
+            raise RuntimeError(f'参考资源提取在 180 秒内没有完成：{pak}（批次 {index}/{len(batches)}）') from exc
+        if process.returncode != 0 or any(not (destination/p).is_file() for p in batch):
+            raise RuntimeError('参考资源提取失败：'+(process.stderr or process.stdout)[-1000:])
     return destination
 
 

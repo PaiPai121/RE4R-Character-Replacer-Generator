@@ -452,18 +452,75 @@ def run_build_job(job_id, project):
         fail_job(job, str(exc))
 
 
+def append_job_progress(job, message):
+    previous = job.get('stdout', '')
+    job['stdout'] = (previous + ('\n' if previous else '') + message)[-4000:]
+
+
+def profile_is_current(character, data):
+    folder = PROJECT / 'replacer_app' / 'presets' / ('re4_' + character['id'])
+    try:
+        policy = json.loads((folder / 'profile.json').read_text(encoding='utf-8'))
+    except (OSError, json.JSONDecodeError):
+        return False
+    expected_fingerprint = json.loads(json.dumps(data.get('fingerprint')))
+    return (policy.get('character') == character['id']
+            and policy.get('game_fingerprint') == expected_fingerprint
+            and (folder / 'hidden.mesh.221108797').is_file()
+            and (folder / 'neutral.mdf2.32').is_file()
+            and all((folder / 'partials' / path).is_file()
+                    for path in policy.get('partial_meshes', [])))
+
+
 def run_scan_job(job_id, payload):
     job = JOBS[job_id]
     job['status'] = 'running'
     try:
         data = game_resources.scan(payload.get('gamePath') or game_resources.DEFAULT_GAME, job)
-        job['stdout'] = '正在准备角色骨架与资源槽配置'
-        process = subprocess.run([str(BLENDER),'-b','--python-exit-code','1','--python',
-                                  str(PROJECT/'scripts/prepare_character_profiles.py')],
-                                 cwd=PROJECT,capture_output=True,text=True,encoding='utf-8',errors='replace',timeout=600)
-        job['stdout'] = process.stdout
-        if process_failed(process):
-            raise RuntimeError('参考配置生成失败：'+(process.stderr or process.stdout)[-1600:])
+        job['stdout'] = '游戏索引扫描完成'
+        characters = game_resources.CHARACTERS
+        pending = [character for character in characters if not profile_is_current(character, data)]
+        if pending:
+            pending_ids = {value for character in pending for value in character['characterIds']}
+            required_paths = [path for path in data['resources']
+                              if path in game_resources.COMMON_RESOURCES
+                              or any('/' + character_id + '/' in path for character_id in pending_ids)]
+            reference = game_resources.CACHE / 'reference'
+            game_resources.extract(
+                data, required_paths, reference,
+                lambda current, total, pak: append_job_progress(job, f'正在提取参考资源 {current}/{total}：{pak}'),
+            )
+        else:
+            append_job_progress(job, '全部角色配置均与当前游戏版本匹配，无需重新提取')
+        for index, character in enumerate(characters, 1):
+            label = character['label']
+            if profile_is_current(character, data):
+                append_job_progress(job, f'角色配置 {index}/{len(characters)}：{label} 已完成，跳过')
+                continue
+            append_job_progress(job, f'正在准备角色配置 {index}/{len(characters)}：{label}')
+            command = [str(BLENDER), '-b', '--python-exit-code', '1', '--python',
+                       str(PROJECT/'scripts/prepare_character_profiles.py'), '--',
+                       '--character', character['id'], '--skip-extract']
+            try:
+                process = subprocess.run(command, cwd=PROJECT, capture_output=True, text=True,
+                                         encoding='utf-8', errors='replace', timeout=180)
+            except subprocess.TimeoutExpired as exc:
+                raise RuntimeError(
+                    f'准备“{label}”角色配置时 Blender 在 180 秒内没有完成。'
+                    '请使用 Blender 5.2 LTS 或 4.2，并重试；此前已完成的角色会保留。'
+                ) from exc
+            if process.stdout:
+                append_job_progress(job, process.stdout[-1600:])
+            if process_failed(process):
+                raise RuntimeError(f'准备“{label}”角色配置失败：'+(process.stderr or process.stdout)[-1600:])
+            result = extract_last_json(process.stdout)
+            if not result or character['id'] not in result.get('prepared', []):
+                if result and character['id'] in result.get('skipped', []):
+                    append_job_progress(job, f'未发现“{label}”的主模型资源，已跳过')
+                    continue
+                raise RuntimeError(f'准备“{label}”角色配置后没有生成有效结果')
+            if not profile_is_current(character, data):
+                raise RuntimeError(f'“{label}”角色配置输出不完整，已停止以避免使用损坏缓存')
         job.update(status='complete',result={'gamePath':data['game'],'targets':scan_replaceable_characters()})
     except Exception as exc:
         fail_job(job,str(exc))

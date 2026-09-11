@@ -7,6 +7,12 @@ The current preview supports automatic runtime-path discovery with manual overri
 > [!IMPORTANT]
 > This is preview software. Keep backups and inspect generated mods before distributing them. You must own the game and provide your own model files. No game assets or third-party character models are included here.
 
+## 0.4.6 preview fixes
+
+- Character reference preparation is split into independently bounded per-character Blender runs instead of one silent ten-minute process.
+- Scan progress identifies the current extraction batch and character; completed character profiles are retained and reused after a retry when the game PAK fingerprint is unchanged.
+- A stalled character now fails after 180 seconds with its name and actionable Blender-version guidance.
+
 ## 0.4.5 preview fixes
 
 - The Windows model picker is now owned and displayed by the already-running launcher on its UI thread, so it cannot be stranded behind the browser by a background Blender process.
@@ -57,7 +63,7 @@ Run the application tests:
 ```powershell
 python -m pip install -r requirements-dev.txt
 cd replacer_app
-python -m unittest test_adjust_endpoint test_dds_fallback test_fluffy_package test_game_resources test_model_directory test_pipeline test_runtime_paths test_static_server
+python -m unittest test_adjust_endpoint test_dds_fallback test_fluffy_package test_game_resources test_model_directory test_pipeline test_profile_preparation test_runtime_paths test_static_server
 ```
 
 Build the native components:

@@ -1,7 +1,9 @@
 """Build compatibility data from discovered game slots, without source artwork."""
+import argparse
 import copy
 import importlib
 import json
+import os
 import shutil
 import sys
 from pathlib import Path
@@ -65,21 +67,34 @@ def write_neutral_mdf(parser, source_path, destination):
         raise RuntimeError('Neutral material roundtrip failed')
 
 
-def prepare():
+def progress(stage, **details):
+    print(json.dumps({'progress': stage, **details}, ensure_ascii=False), flush=True)
+
+
+def prepare(character_id=None, extract_resources=True):
     data = resources.read_index()
     if not data:
         raise RuntimeError('Run a game resource scan first')
     reference = resources.CACHE/'reference'
-    resources.extract(data,list(data['resources']),reference)
+    if extract_resources:
+        progress('extracting-resources')
+        resources.extract(data,list(data['resources']),reference)
     addon = pose.register_local_package('profile_mesh_editor',ROOT/'tools/RE-Mesh-Editor')
     parser = importlib.import_module(addon.__name__+'.modules.mdf.file_re_mdf')
     prepared = []
-    for character in resources.CHARACTERS:
+    skipped = []
+    characters = [item for item in resources.CHARACTERS if character_id is None or item['id'] == character_id]
+    if character_id is not None and not characters:
+        raise ValueError(f'Unknown character profile: {character_id}')
+    for character in characters:
+        progress('character-start', character=character['id'], label=character['label'])
         ids = character['characterIds']
         paths = [p for p in data['resources'] if any('/'+i+'/' in p for i in ids)]
         body = [p for p in paths if '/00/' in p and '.mesh.' in p]
         primary = next((p for p in body if p.endswith(character['primaryTarget']+'_00.mesh.221108797')),None)
         if not primary:
+            skipped.append(character['id'])
+            progress('character-skipped', character=character['id'], reason='primary mesh not found')
             continue
         folder = ROOT/'replacer_app/presets'/('re4_'+character['id'])
         folder.mkdir(parents=True,exist_ok=True)
@@ -136,12 +151,26 @@ def prepare():
         policy = dict(character=character['id'],body_meshes=body,partial_meshes=partials,
                       mdf_files=mdf_files,alias_materials=['NeutralHidden'],
                       reference_mesh=str(reference/primary),bone_names=bone_names,
+                      game_fingerprint=data.get('fingerprint'),
                       provenance='Scanned game PAK; generated hidden geometry; no source model geometry',
                       in_game_verified=False)
-        (folder/'profile.json').write_text(json.dumps(policy,indent=2),encoding='utf-8')
+        profile_path = folder/'profile.json'
+        temporary = profile_path.with_suffix('.json.tmp')
+        temporary.write_text(json.dumps(policy,indent=2),encoding='utf-8')
+        os.replace(temporary, profile_path)
         prepared.append(character['id'])
-    print(json.dumps({'prepared':prepared}))
+        progress('character-complete', character=character['id'])
+    print(json.dumps({'prepared':prepared, 'skipped':skipped}), flush=True)
+
+
+def arguments():
+    values = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--character')
+    parser.add_argument('--skip-extract', action='store_true')
+    return parser.parse_args(values)
 
 
 if __name__=='__main__':
-    prepare()
+    args = arguments()
+    prepare(args.character, extract_resources=not args.skip_extract)
