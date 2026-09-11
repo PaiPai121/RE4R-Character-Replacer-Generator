@@ -1,9 +1,10 @@
 import tempfile
 import threading
 import unittest
+import json
 from pathlib import Path
 from unittest.mock import patch
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 
 import server
 
@@ -24,7 +25,8 @@ class StaticServerTests(unittest.TestCase):
         with urlopen(f'http://127.0.0.1:{port}/', timeout=3) as response:
             body = response.read().decode('utf-8')
             self.assertEqual(response.headers.get_content_type(), 'text/html')
-            self.assertIn('<title>RE4 · 人物替换</title>', body)
+            self.assertIn('<title>RE4 · Character Replacer</title>', body)
+            self.assertIn('<script src="/i18n.js"></script>', body)
             self.assertNotIn('Directory listing for /', body)
 
     def test_directory_listing_is_disabled(self):
@@ -37,6 +39,23 @@ class StaticServerTests(unittest.TestCase):
             duplicate = server.ExclusiveThreadingHTTPServer(
                 ('127.0.0.1', self.httpd.server_port), server.Handler)
             duplicate.server_close()
+
+    def test_language_choice_is_shared_with_launcher_config(self):
+        port = self.httpd.server_port
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'replacer-paths.json').write_text(json.dumps({'blender': 'C:/Blender/blender.exe'}), encoding='utf-8')
+            request = Request(
+                f'http://127.0.0.1:{port}/api/language',
+                data=json.dumps({'language': 'en-US'}).encode('utf-8'),
+                headers={'Content-Type': 'application/json'},
+                method='POST',
+            )
+            with patch.object(server, 'PROJECT', root), patch.object(server, 'source_revision', return_value=server.LOADED_REVISION):
+                with urlopen(request, timeout=3) as response:
+                    self.assertEqual(json.loads(response.read())['language'], 'en')
+            saved = json.loads((root / 'replacer-paths.json').read_text(encoding='utf-8'))
+            self.assertEqual(saved, {'blender': 'C:/Blender/blender.exe', 'language': 'en'})
 
     def test_download_path_accepts_only_project_and_short_build_roots(self):
         with tempfile.TemporaryDirectory() as directory:

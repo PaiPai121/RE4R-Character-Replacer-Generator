@@ -7,6 +7,14 @@ The current preview supports automatic runtime-path discovery with manual overri
 > [!IMPORTANT]
 > This is preview software. Keep backups and inspect generated mods before distributing them. You must own the game and provide your own model files. No game assets or third-party character models are included here.
 
+## 0.4.7 preview fixes
+
+- The native Windows launcher and browser interface now support complete English and Chinese modes.
+- Language is selected automatically from the operating system or browser on first run, can be changed at any time from the launcher or page header, and is remembered for later runs.
+- Dynamic character names, availability labels, task stages, elapsed-time messages, model picking, scan/build states, common errors, accessibility labels, and placeholders are localized instead of translating only static headings.
+- English is the safe static-page fallback, so an interrupted script load does not leave international users with an unusable Chinese-only page.
+- Release self-tests now require both localization catalogs to be present in the final packaged application.
+
 ## 0.4.6 preview fixes
 
 - Character reference preparation is split into independently bounded per-character Blender runs instead of one silent ten-minute process.
@@ -68,7 +76,7 @@ Run the application tests:
 ```powershell
 python -m pip install -r requirements-dev.txt
 cd replacer_app
-python -m unittest test_adjust_endpoint test_dds_fallback test_fluffy_package test_game_resources test_model_directory test_pipeline test_profile_preparation test_runtime_paths test_static_server
+python -m unittest test_adjust_endpoint test_dds_fallback test_fluffy_package test_game_resources test_i18n test_model_directory test_pipeline test_profile_preparation test_runtime_paths test_static_server
 ```
 
 Build the native components:

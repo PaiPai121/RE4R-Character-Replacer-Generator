@@ -69,6 +69,8 @@ internal static class LauncherSelfTest
             using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
             var rootResponse = await client.GetAsync(url);
             var html = await rootResponse.Content.ReadAsStringAsync();
+            var i18nResponse = await client.GetAsync(url + "i18n.js");
+            var i18n = await i18nResponse.Content.ReadAsStringAsync();
             var healthResponse = await client.GetAsync(url + "api/health");
             var browseResponse = await client.GetAsync(url + "api/model-directory");
             using var browseDocument = JsonDocument.Parse(await browseResponse.Content.ReadAsStringAsync());
@@ -79,7 +81,9 @@ internal static class LauncherSelfTest
             var pickedPath = pickDocument.RootElement.TryGetProperty("path", out var pickedElement) ? pickedElement.GetString() : null;
             var missingResponse = await client.GetAsync(url + "missing/");
             report["rootStatus"] = (int)rootResponse.StatusCode;
-            report["correctPage"] = rootResponse.IsSuccessStatusCode && html.Contains("<title>RE4 · 人物替换</title>") && !html.Contains("Directory listing for");
+            report["correctPage"] = rootResponse.IsSuccessStatusCode && html.Contains("<title>RE4 · Character Replacer</title>") && !html.Contains("Directory listing for");
+            report["englishUiAvailable"] = i18nResponse.IsSuccessStatusCode && i18n.Contains("Character Replacer") && i18n.Contains("Generate Mod");
+            report["chineseUiAvailable"] = i18nResponse.IsSuccessStatusCode && i18n.Contains("人物替换") && i18n.Contains("生成 Mod");
             report["healthStatus"] = (int)healthResponse.StatusCode;
             report["modelBrowserStatus"] = (int)browseResponse.StatusCode;
             report["modelBrowserPath"] = browsePath;
@@ -88,7 +92,8 @@ internal static class LauncherSelfTest
             report["nativePickerRoundTrip"] = pickResponse.IsSuccessStatusCode && string.Equals(pickedPath, testModel, StringComparison.OrdinalIgnoreCase);
             report["missingStatus"] = (int)missingResponse.StatusCode;
             report["passed"] = selectedPort == basePort + 1 && rootResponse.IsSuccessStatusCode
-                && (bool)report["correctPage"]! && healthResponse.IsSuccessStatusCode
+                && (bool)report["correctPage"]! && (bool)report["englishUiAvailable"]! && (bool)report["chineseUiAvailable"]!
+                && healthResponse.IsSuccessStatusCode
                 && browseResponse.IsSuccessStatusCode && browsePath is not null && Directory.Exists(browsePath)
                 && pickResponse.IsSuccessStatusCode && string.Equals(pickedPath, testModel, StringComparison.OrdinalIgnoreCase)
                 && missingResponse.StatusCode == HttpStatusCode.NotFound;

@@ -25,7 +25,7 @@ jobs:
 
       - name: Python tests
         working-directory: replacer_app
-        run: python -m unittest test_adjust_endpoint test_dds_fallback test_fluffy_package test_game_resources test_model_directory test_pipeline test_profile_preparation test_runtime_paths test_static_server
+        run: python -m unittest test_adjust_endpoint test_dds_fallback test_fluffy_package test_game_resources test_i18n test_model_directory test_pipeline test_profile_preparation test_runtime_paths test_static_server
 
       - name: Build launcher
         run: dotnet build tools/replacer_launcher/ReplacerLauncher.csproj -c Release

@@ -42,9 +42,14 @@ internal static class NativeModelPicker
         var testPath = Environment.GetEnvironmentVariable("REPLACER_PICK_MODEL_TEST_PATH");
         if (!string.IsNullOrWhiteSpace(testPath)) return CompleteSelection(testPath, saveDirectory: false);
 
+        var language = LauncherLanguage.Detect(AppContext.BaseDirectory);
+        var chinese = LauncherLanguage.IsChinese(language);
+
         using var dialog = new OpenFileDialog {
-            Title = "选择人物模型",
-            Filter = "支持的人物模型 (*.pmx;*.pmd;*.fbx;*.blend)|*.pmx;*.pmd;*.fbx;*.blend|MikuMikuDance 模型 (*.pmx;*.pmd)|*.pmx;*.pmd|FBX 模型 (*.fbx)|*.fbx|Blender 文件 (*.blend)|*.blend",
+            Title = chinese ? "选择人物模型" : "Select a character model",
+            Filter = chinese
+                ? "支持的人物模型 (*.pmx;*.pmd;*.fbx;*.blend)|*.pmx;*.pmd;*.fbx;*.blend|MikuMikuDance 模型 (*.pmx;*.pmd)|*.pmx;*.pmd|FBX 模型 (*.fbx)|*.fbx|Blender 文件 (*.blend)|*.blend"
+                : "Supported character models (*.pmx;*.pmd;*.fbx;*.blend)|*.pmx;*.pmd;*.fbx;*.blend|MikuMikuDance models (*.pmx;*.pmd)|*.pmx;*.pmd|FBX models (*.fbx)|*.fbx|Blender files (*.blend)|*.blend",
             CheckFileExists = true,
             Multiselect = false,
             RestoreDirectory = true,
@@ -61,9 +66,10 @@ internal static class NativeModelPicker
     private static Dictionary<string, object?> CompleteSelection(string selectedPath, bool saveDirectory = true)
     {
         var fullPath = Path.GetFullPath(selectedPath);
-        if (!File.Exists(fullPath)) throw new FileNotFoundException("选择的模型文件不存在。", fullPath);
+        var chinese = LauncherLanguage.IsChinese(LauncherLanguage.Detect(AppContext.BaseDirectory));
+        if (!File.Exists(fullPath)) throw new FileNotFoundException(chinese ? "选择的模型文件不存在。" : "The selected model file does not exist.", fullPath);
         if (!SupportedExtensions.Contains(Path.GetExtension(fullPath)))
-            throw new InvalidDataException("请选择 PMX、PMD、FBX 或 BLEND 模型文件。");
+            throw new InvalidDataException(chinese ? "请选择 PMX、PMD、FBX 或 BLEND 模型文件。" : "Select a PMX, PMD, FBX, or BLEND model file.");
         var directory = Path.GetDirectoryName(fullPath)!;
         if (saveDirectory)
         {
@@ -79,7 +85,7 @@ internal static class NativeModelPicker
     private static string? ChooseInitialDirectory(string? requested)
     {
         var candidates = new List<string?> { requested };
-        var config = ReadConfig();
+        var config = LauncherLanguage.ReadConfig(AppContext.BaseDirectory);
         if (config.TryGetValue("modelDirectory", out var saved)) candidates.Add(saved);
         candidates.Add(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments));
         candidates.Add(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory));
@@ -89,22 +95,7 @@ internal static class NativeModelPicker
 
     private static void SaveLastDirectory(string directory)
     {
-        var config = ReadConfig();
-        config["modelDirectory"] = directory;
-        var configPath = Path.Combine(AppContext.BaseDirectory, "replacer-paths.json");
-        WriteJsonAtomic(configPath, config);
-    }
-
-    private static Dictionary<string, string> ReadConfig()
-    {
-        var configPath = Path.Combine(AppContext.BaseDirectory, "replacer-paths.json");
-        try
-        {
-            return File.Exists(configPath)
-                ? JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(configPath)) ?? new()
-                : new();
-        }
-        catch (Exception ex) when (ex is IOException or JsonException) { return new(); }
+        LauncherLanguage.UpdateConfig(AppContext.BaseDirectory, config => config["modelDirectory"] = directory);
     }
 
     private static string? Option(string[] args, string name)

@@ -41,6 +41,14 @@ internal sealed class LauncherForm : Form
     private readonly Button startButton = new();
     private readonly Button stopButton = new();
     private readonly Button openButton = new();
+    private readonly Button languageButton = new();
+    private readonly Label subtitleLabel = new();
+    private readonly Label blenderLabel = new();
+    private readonly Label blenderHintLabel = new();
+    private readonly Label gameLabel = new();
+    private readonly Label gameHintLabel = new();
+    private readonly Button blenderBrowseButton = new();
+    private readonly Button gameBrowseButton = new();
     private readonly Label statusLabel = new();
     private readonly TextBox logBox = new();
     private readonly NotifyIcon trayIcon = new();
@@ -51,6 +59,10 @@ internal sealed class LauncherForm : Form
     private bool allowExit;
     private bool pickerBusy;
     private readonly bool lifecycleTest;
+    private string language;
+    private ToolStripMenuItem? openMenuItem;
+    private ToolStripMenuItem? showMenuItem;
+    private ToolStripMenuItem? exitMenuItem;
 
     internal bool LifecycleTestPassed { get; private set; }
 
@@ -67,6 +79,7 @@ internal sealed class LauncherForm : Form
     public LauncherForm(bool lifecycleTest = false)
     {
         this.lifecycleTest = lifecycleTest;
+        language = LauncherLanguage.Detect(root);
         Text = "RE4R Character Replacer";
         Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
         StartPosition = FormStartPosition.CenterScreen;
@@ -77,6 +90,7 @@ internal sealed class LauncherForm : Form
         Font = new Font("Segoe UI", 10F);
         BuildInterface();
         ConfigureTray();
+        ApplyLanguage();
         ConfigurePickerBroker();
         LoadPaths();
         FormClosing += LauncherFormClosing;
@@ -124,7 +138,7 @@ internal sealed class LauncherForm : Form
         }
         catch (Exception ex)
         {
-            AppendLog("模型文件窗口失败：" + ex.Message);
+            AppendLog(L("模型文件窗口失败：", "Model file window failed: ") + ex.Message);
             try { File.WriteAllText(resultPath, JsonSerializer.Serialize(new { ok = false, error = ex.Message }), new UTF8Encoding(false)); } catch { }
         }
         finally
@@ -141,23 +155,35 @@ internal sealed class LauncherForm : Form
         var page = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(26), ColumnCount = 1, RowCount = 8 };
         for (var index = 0; index < 7; index++) page.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         page.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        page.Controls.Add(new Label {
+        var titleRow = new TableLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, ColumnCount = 2 };
+        titleRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        titleRow.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        titleRow.Controls.Add(new Label {
             AutoSize = true, Text = "RE4R CHARACTER REPLACER", Font = new Font("Segoe UI Semibold", 20F),
             ForeColor = Color.FromArgb(220, 47, 47), Margin = new Padding(0, 0, 0, 3),
-        });
-        page.Controls.Add(new Label {
-            AutoSize = true, Text = "人物替换 Mod 生成工具 · 本地运行，不包含角色模型或游戏文件",
-            ForeColor = Color.FromArgb(174, 177, 181), Margin = new Padding(1, 0, 0, 20),
-        });
-        page.Controls.Add(CreatePathRow("Blender", blenderPath, BrowseBlender));
-        page.Controls.Add(CreateHint("请选择 blender.exe。程序会自动查找常见安装位置，也可以随时手动修改。"));
-        page.Controls.Add(CreatePathRow("RE4 游戏目录", gamePath, BrowseGame));
-        page.Controls.Add(CreateHint("请选择包含 re_chunk_000.pak 的《Resident Evil 4 (2023)》目录。"));
+        }, 0, 0);
+        languageButton.AutoSize = true;
+        languageButton.MinimumSize = new Size(70, 32);
+        languageButton.FlatStyle = FlatStyle.Flat;
+        languageButton.FlatAppearance.BorderColor = Color.FromArgb(85, 87, 91);
+        languageButton.BackColor = Color.FromArgb(34, 36, 39);
+        languageButton.ForeColor = ForeColor;
+        languageButton.Click += (_, _) => ToggleLanguage();
+        titleRow.Controls.Add(languageButton, 1, 0);
+        page.Controls.Add(titleRow);
+        subtitleLabel.AutoSize = true;
+        subtitleLabel.ForeColor = Color.FromArgb(174, 177, 181);
+        subtitleLabel.Margin = new Padding(1, 0, 0, 20);
+        page.Controls.Add(subtitleLabel);
+        page.Controls.Add(CreatePathRow(blenderLabel, blenderPath, blenderBrowseButton, BrowseBlender));
+        page.Controls.Add(CreateHint(blenderHintLabel));
+        page.Controls.Add(CreatePathRow(gameLabel, gamePath, gameBrowseButton, BrowseGame));
+        page.Controls.Add(CreateHint(gameHintLabel));
 
         var actions = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight, Margin = new Padding(0, 18, 0, 12) };
-        ConfigureButton(startButton, "启动生成器", Color.FromArgb(184, 37, 37));
-        ConfigureButton(stopButton, "停止", Color.FromArgb(62, 64, 68));
-        ConfigureButton(openButton, "打开界面", Color.FromArgb(62, 64, 68));
+        ConfigureButton(startButton, "", Color.FromArgb(184, 37, 37));
+        ConfigureButton(stopButton, "", Color.FromArgb(62, 64, 68));
+        ConfigureButton(openButton, "", Color.FromArgb(62, 64, 68));
         stopButton.Enabled = false;
         openButton.Enabled = false;
         startButton.Click += async (_, _) => await StartServerAsync();
@@ -169,7 +195,7 @@ internal sealed class LauncherForm : Form
         var lower = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2, ColumnCount = 1 };
         lower.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         lower.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        statusLabel.Text = "尚未启动";
+        statusLabel.Text = "";
         statusLabel.AutoSize = true;
         statusLabel.ForeColor = Color.FromArgb(188, 191, 195);
         statusLabel.Margin = new Padding(0, 0, 0, 8);
@@ -186,18 +212,23 @@ internal sealed class LauncherForm : Form
         Controls.Add(page);
     }
 
-    private Control CreatePathRow(string labelText, TextBox box, EventHandler browse)
+    private Control CreatePathRow(Label label, TextBox box, Button button, EventHandler browse)
     {
         var row = new TableLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, ColumnCount = 3, Margin = new Padding(0, 4, 0, 0) };
         row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 135));
         row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 92));
-        var label = new Label { Text = labelText, AutoSize = true, Anchor = AnchorStyles.Left, ForeColor = ForeColor };
+        label.AutoSize = true;
+        label.Anchor = AnchorStyles.Left;
+        label.ForeColor = ForeColor;
         box.Dock = DockStyle.Fill;
         box.BackColor = Color.FromArgb(34, 36, 39);
         box.ForeColor = ForeColor;
         box.BorderStyle = BorderStyle.FixedSingle;
-        var button = new Button { Text = "浏览…", Dock = DockStyle.Fill, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(54, 56, 60), ForeColor = ForeColor };
+        button.Dock = DockStyle.Fill;
+        button.FlatStyle = FlatStyle.Flat;
+        button.BackColor = Color.FromArgb(54, 56, 60);
+        button.ForeColor = ForeColor;
         button.FlatAppearance.BorderColor = Color.FromArgb(85, 87, 91);
         button.Click += browse;
         row.Controls.Add(label, 0, 0);
@@ -206,9 +237,13 @@ internal sealed class LauncherForm : Form
         return row;
     }
 
-    private static Label CreateHint(string text) => new() {
-        AutoSize = true, Text = text, ForeColor = Color.FromArgb(135, 139, 144), Margin = new Padding(136, 3, 0, 10),
-    };
+    private static Label CreateHint(Label label)
+    {
+        label.AutoSize = true;
+        label.ForeColor = Color.FromArgb(135, 139, 144);
+        label.Margin = new Padding(136, 3, 0, 10);
+        return label;
+    }
 
     private static void ConfigureButton(Button button, string text, Color color)
     {
@@ -222,6 +257,42 @@ internal sealed class LauncherForm : Form
         button.Margin = new Padding(0, 0, 10, 0);
     }
 
+    private string L(string chinese, string english) => LauncherLanguage.IsChinese(language) ? chinese : english;
+
+    private void ApplyLanguage()
+    {
+        subtitleLabel.Text = L("人物替换 Mod 生成工具 · 本地运行，不包含角色模型或游戏文件",
+            "Character replacement Mod generator · Runs locally · Includes no character models or game files");
+        blenderLabel.Text = "Blender";
+        blenderHintLabel.Text = L("请选择 blender.exe。程序会自动查找常见安装位置，也可以随时手动修改。",
+            "Select blender.exe. Common locations are detected automatically, and you can change the path at any time.");
+        gameLabel.Text = L("RE4 游戏目录", "RE4 game folder");
+        gameHintLabel.Text = L("请选择包含 re_chunk_000.pak 的《Resident Evil 4 (2023)》目录。",
+            "Select the Resident Evil 4 (2023) folder that contains re_chunk_000.pak.");
+        blenderBrowseButton.Text = L("浏览…", "Browse…");
+        gameBrowseButton.Text = L("浏览…", "Browse…");
+        startButton.Text = L("启动生成器", "Start generator");
+        stopButton.Text = L("停止", "Stop");
+        openButton.Text = L("打开界面", "Open interface");
+        languageButton.Text = LauncherLanguage.IsChinese(language) ? "English" : "中文";
+        languageButton.AccessibleName = L("切换为英文", "Switch to Chinese");
+        openMenuItem!.Text = L("打开生成器界面", "Open generator interface");
+        showMenuItem!.Text = L("显示启动器", "Show launcher");
+        exitMenuItem!.Text = L("退出并停止服务", "Exit and stop service");
+        if (serverProcess is { HasExited: false } && serverUri is not null)
+            SetStatus(L($"运行中 · {serverUri}", $"Running · {serverUri}"), Color.FromArgb(91, 194, 125));
+        else if (serverProcess is null)
+            SetStatus(L("尚未启动", "Not started"), Color.FromArgb(188, 191, 195));
+    }
+
+    private void ToggleLanguage()
+    {
+        language = LauncherLanguage.IsChinese(language) ? "en" : "zh-CN";
+        LauncherLanguage.UpdateConfig(root, config => config["language"] = language);
+        ApplyLanguage();
+        AppendLog(L("语言已切换为中文。", "Language switched to English."));
+    }
+
     private void BrowseBlender(object? sender, EventArgs e)
     {
         using var dialog = new OpenFileDialog { Filter = "Blender (blender.exe)|blender.exe|Executable files (*.exe)|*.exe", CheckFileExists = true };
@@ -231,7 +302,10 @@ internal sealed class LauncherForm : Form
 
     private void BrowseGame(object? sender, EventArgs e)
     {
-        using var dialog = new FolderBrowserDialog { Description = "选择包含 re_chunk_000.pak 的 RE4 (2023) 游戏目录", UseDescriptionForTitle = true };
+        using var dialog = new FolderBrowserDialog {
+            Description = L("选择包含 re_chunk_000.pak 的 RE4 (2023) 游戏目录", "Select the RE4 (2023) game folder containing re_chunk_000.pak"),
+            UseDescriptionForTitle = true,
+        };
         if (Directory.Exists(gamePath.Text)) dialog.SelectedPath = gamePath.Text;
         if (dialog.ShowDialog(this) == DialogResult.OK) gamePath.Text = dialog.SelectedPath;
     }
@@ -247,7 +321,7 @@ internal sealed class LauncherForm : Form
                 if (document.RootElement.TryGetProperty("game", out var game)) gamePath.Text = game.GetString() ?? "";
             }
         }
-        catch (Exception ex) { AppendLog("已有路径配置无法读取：" + ex.Message); }
+        catch (Exception ex) { AppendLog(L("已有路径配置无法读取：", "Could not read the saved path configuration: ") + ex.Message); }
         if (!IsBlender(blenderPath.Text)) blenderPath.Text = FindBlender() ?? blenderPath.Text;
         if (!IsGame(gamePath.Text)) gamePath.Text = FindGame() ?? gamePath.Text;
     }
@@ -290,10 +364,10 @@ internal sealed class LauncherForm : Form
         if (serverProcess is { HasExited: false }) { OpenInterface(); return; }
         var blender = blenderPath.Text.Trim().Trim('"');
         var game = gamePath.Text.Trim().Trim('"');
-        if (!IsBlender(blender)) { ShowPathError("请选择有效的 blender.exe。", blenderPath); return; }
-        if (!string.IsNullOrWhiteSpace(game) && !IsGame(game)) { ShowPathError("游戏目录必须包含 re_chunk_000.pak。", gamePath); return; }
+        if (!IsBlender(blender)) { ShowPathError(L("请选择有效的 blender.exe。", "Select a valid blender.exe."), blenderPath); return; }
+        if (!string.IsNullOrWhiteSpace(game) && !IsGame(game)) { ShowPathError(L("游戏目录必须包含 re_chunk_000.pak。", "The game folder must contain re_chunk_000.pak."), gamePath); return; }
         if (!File.Exists(Path.Combine(root, "replacer_app", "server.py"))) {
-            MessageBox.Show(this, "发布包不完整：找不到 replacer_app\\server.py。", Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(this, L("发布包不完整：找不到 replacer_app\\server.py。", "The release package is incomplete: replacer_app\\server.py is missing."), Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
             return;
         }
 
@@ -303,32 +377,35 @@ internal sealed class LauncherForm : Form
         stopButton.Enabled = false;
         openButton.Enabled = false;
         serverUri = null;
-        SetStatus("正在检查 Blender 运行环境…", Color.FromArgb(224, 183, 77));
-        AppendLog("正在运行依赖检查…");
+        SetStatus(L("正在检查 Blender 运行环境…", "Checking the Blender environment…"), Color.FromArgb(224, 183, 77));
+        AppendLog(L("正在运行依赖检查…", "Running dependency checks…"));
         (int ExitCode, string Output) doctor;
         try { doctor = await RunDoctorAsync(blender, game); }
         catch (Exception ex)
         {
-            AppendLog("无法启动 Blender 依赖检查：" + ex.Message);
-            SetStatus("依赖检查未能启动", Color.FromArgb(224, 84, 84));
+            AppendLog(L("无法启动 Blender 依赖检查：", "Could not start the Blender dependency check: ") + ex.Message);
+            SetStatus(L("依赖检查未能启动", "Dependency check could not start"), Color.FromArgb(224, 84, 84));
             startButton.Enabled = true;
-            MessageBox.Show(this, "无法启动 Blender。请确认路径和文件权限。", Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(this, L("无法启动 Blender。请确认路径和文件权限。", "Could not start Blender. Check the path and file permissions."), Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
             return;
         }
         if (doctor.ExitCode != 0)
         {
             AppendLog(doctor.Output);
-            SetStatus("依赖检查失败", Color.FromArgb(224, 84, 84));
+            SetStatus(L("依赖检查失败", "Dependency check failed"), Color.FromArgb(224, 84, 84));
             startButton.Enabled = true;
             var message = doctor.Output.Contains("Blender 5.1", StringComparison.OrdinalIgnoreCase)
-                ? "Blender 5.1 存在已知的网格导入/导出卡顿故障，不能用于此工具。请安装并选择 Blender 5.2 LTS 或 Blender 5.0。"
-                : "Blender 依赖检查失败。请查看窗口下方日志并确认路径。";
+                ? L("Blender 5.1 存在已知的网格导入/导出卡顿故障，不能用于此工具。请安装并选择 Blender 5.2 LTS 或 Blender 5.0。",
+                    "Blender 5.1 has a known mesh import/export performance problem and cannot be used with this tool. Install and select Blender 5.2 LTS or Blender 5.0.")
+                : L("Blender 依赖检查失败。请查看窗口下方日志并确认路径。",
+                    "The Blender dependency check failed. Review the log below and confirm the configured paths.");
             MessageBox.Show(this, message, Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
             return;
         }
         AppendLog(doctor.Output);
-        AppendLog($"默认从 {PreferredPort} 开始寻找可用端口；端口被占用时会自动顺延。");
-        SetStatus("正在启动本地服务…", Color.FromArgb(224, 183, 77));
+        AppendLog(L($"默认从 {PreferredPort} 开始寻找可用端口；端口被占用时会自动顺延。",
+            $"Searching for a free port starting at {PreferredPort}; occupied ports are skipped automatically."));
+        SetStatus(L("正在启动本地服务…", "Starting local service…"), Color.FromArgb(224, 183, 77));
 
         try
         {
@@ -339,13 +416,13 @@ internal sealed class LauncherForm : Form
             serverProcess.Exited += (_, _) => {
                 if (!closing && IsHandleCreated) BeginInvoke(ServerExited);
             };
-            if (!serverProcess.Start()) throw new InvalidOperationException("Blender 进程未能启动。");
+            if (!serverProcess.Start()) throw new InvalidOperationException(L("Blender 进程未能启动。", "The Blender process could not start."));
             serverProcess.BeginOutputReadLine();
             serverProcess.BeginErrorReadLine();
             stopButton.Enabled = true;
             serverUri = await WaitForServerAsync(serverProcess.Id, TimeSpan.FromSeconds(45));
-            if (serverUri is null) throw new TimeoutException("等待本地服务启动超时。");
-            SetStatus($"运行中 · {serverUri}", Color.FromArgb(91, 194, 125));
+            if (serverUri is null) throw new TimeoutException(L("等待本地服务启动超时。", "Timed out waiting for the local service to start."));
+            SetStatus(L($"运行中 · {serverUri}", $"Running · {serverUri}"), Color.FromArgb(91, 194, 125));
             openButton.Enabled = true;
             if (!lifecycleTest)
             {
@@ -355,9 +432,9 @@ internal sealed class LauncherForm : Form
         }
         catch (Exception ex)
         {
-            AppendLog("启动失败：" + ex.Message);
+            AppendLog(L("启动失败：", "Startup failed: ") + ex.Message);
             StopServer();
-            SetStatus("启动失败", Color.FromArgb(224, 84, 84));
+            SetStatus(L("启动失败", "Startup failed"), Color.FromArgb(224, 84, 84));
             MessageBox.Show(this, ex.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
         finally { startButton.Enabled = true; }
@@ -390,6 +467,7 @@ internal sealed class LauncherForm : Form
         info.Environment["REPLACER_SERVER_STATE"] = StatePath;
         info.Environment["REPLACER_NATIVE_PICKER_DIR"] = PickerDirectory;
         info.Environment["REPLACER_BUILD_ROOT"] = BuildDirectory;
+        info.Environment["REPLACER_LANGUAGE"] = language;
         return info;
     }
 
@@ -416,25 +494,36 @@ internal sealed class LauncherForm : Form
 
     private void SavePaths(string blender, string game)
     {
-        var paths = string.IsNullOrWhiteSpace(game)
-            ? new Dictionary<string, string> { ["blender"] = Path.GetFullPath(blender) }
-            : new Dictionary<string, string> { ["blender"] = Path.GetFullPath(blender), ["game"] = Path.GetFullPath(game) };
-        File.WriteAllText(ConfigPath, JsonSerializer.Serialize(paths, new JsonSerializerOptions { WriteIndented = true }), new UTF8Encoding(false));
-        AppendLog("路径配置已保存到程序目录，可随时在上方修改。");
+        LauncherLanguage.UpdateConfig(root, config => {
+            config["blender"] = Path.GetFullPath(blender);
+            config["language"] = language;
+            if (string.IsNullOrWhiteSpace(game)) config.Remove("game"); else config["game"] = Path.GetFullPath(game);
+        });
+        AppendLog(L("路径配置已保存到程序目录，可随时在上方修改。", "Path settings were saved. You can change them above at any time."));
     }
 
     private void OpenInterface()
     {
-        if (serverUri is not null) Process.Start(new ProcessStartInfo(serverUri.AbsoluteUri) { UseShellExecute = true });
+        if (serverUri is not null)
+        {
+            language = LauncherLanguage.Detect(root);
+            ApplyLanguage();
+            var separator = serverUri.AbsoluteUri.Contains('?') ? '&' : '?';
+            var url = serverUri.AbsoluteUri + separator + "lang=" + Uri.EscapeDataString(language);
+            Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+        }
     }
 
     private void ConfigureTray()
     {
         var menu = new ContextMenuStrip();
-        menu.Items.Add("打开生成器界面", null, (_, _) => OpenInterface());
-        menu.Items.Add("显示启动器", null, (_, _) => ShowLauncher());
+        openMenuItem = new ToolStripMenuItem("", null, (_, _) => OpenInterface());
+        showMenuItem = new ToolStripMenuItem("", null, (_, _) => ShowLauncher());
+        exitMenuItem = new ToolStripMenuItem("", null, (_, _) => { allowExit = true; Close(); });
+        menu.Items.Add(openMenuItem);
+        menu.Items.Add(showMenuItem);
         menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add("退出并停止服务", null, (_, _) => { allowExit = true; Close(); });
+        menu.Items.Add(exitMenuItem);
         trayIcon.Icon = Icon;
         trayIcon.Text = "RE4R Character Replacer";
         trayIcon.ContextMenuStrip = menu;
@@ -461,7 +550,9 @@ internal sealed class LauncherForm : Form
         ShowInTaskbar = false;
         Hide();
         if (showNotice)
-            trayIcon.ShowBalloonTip(3500, "RE4R Character Replacer", "生成器仍在后台运行。双击托盘图标可重新打开，右键可退出。", ToolTipIcon.Info);
+            trayIcon.ShowBalloonTip(3500, "RE4R Character Replacer",
+                L("生成器仍在后台运行。双击托盘图标可重新打开，右键可退出。",
+                    "The generator is still running in the background. Double-click the tray icon to reopen it, or right-click to exit."), ToolTipIcon.Info);
     }
 
     private void ShowLauncher()
@@ -521,7 +612,7 @@ internal sealed class LauncherForm : Form
     private void StopServer()
     {
         try { if (serverProcess is { HasExited: false }) serverProcess.Kill(entireProcessTree: true); }
-        catch (Exception ex) { if (!closing) AppendLog("停止服务时发生错误：" + ex.Message); }
+        catch (Exception ex) { if (!closing) AppendLog(L("停止服务时发生错误：", "An error occurred while stopping the service: ") + ex.Message); }
         serverProcess?.Dispose();
         serverProcess = null;
         serverUri = null;
@@ -531,22 +622,24 @@ internal sealed class LauncherForm : Form
             startButton.Enabled = true;
             stopButton.Enabled = false;
             openButton.Enabled = false;
-            SetStatus("已停止", Color.FromArgb(188, 191, 195));
+            SetStatus(L("已停止", "Stopped"), Color.FromArgb(188, 191, 195));
         }
     }
 
     private void ServerExited()
     {
         if (closing || serverProcess is null) return;
-        AppendLog($"本地服务已退出（代码 {serverProcess.ExitCode}）。");
+        AppendLog(L($"本地服务已退出（代码 {serverProcess.ExitCode}）。", $"The local service exited with code {serverProcess.ExitCode}."));
         serverProcess.Dispose();
         serverProcess = null;
         serverUri = null;
         startButton.Enabled = true;
         stopButton.Enabled = false;
         openButton.Enabled = false;
-        SetStatus("服务已退出", Color.FromArgb(224, 84, 84));
-        trayIcon.ShowBalloonTip(5000, "RE4R Character Replacer", "本地服务已经退出，请打开启动器查看日志并重新启动。", ToolTipIcon.Error);
+        SetStatus(L("服务已退出", "Service exited"), Color.FromArgb(224, 84, 84));
+        trayIcon.ShowBalloonTip(5000, "RE4R Character Replacer",
+            L("本地服务已经退出，请打开启动器查看日志并重新启动。",
+                "The local service exited. Open the launcher, review the log, and start it again."), ToolTipIcon.Error);
         ShowLauncher();
     }
 

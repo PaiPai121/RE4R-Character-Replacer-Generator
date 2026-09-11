@@ -90,6 +90,22 @@ def json_response(handler, data, status=200):
     handler.wfile.write(payload)
 
 
+def save_language(value, root=None):
+    language = 'zh-CN' if str(value).lower().startswith('zh') else 'en'
+    config_path = (root or PROJECT) / 'replacer-paths.json'
+    try:
+        config = json.loads(config_path.read_text(encoding='utf-8')) if config_path.is_file() else {}
+        if not isinstance(config, dict):
+            config = {}
+    except (OSError, json.JSONDecodeError):
+        config = {}
+    config['language'] = language
+    temporary = config_path.with_name(config_path.name + f'.{os.getpid()}.tmp')
+    temporary.write_text(json.dumps(config, ensure_ascii=False, indent=2), encoding='utf-8')
+    temporary.replace(config_path)
+    return language
+
+
 def resolve_download_path(raw_path):
     resolved = Path(raw_path).resolve()
     roots = ((PROJECT / 'work').resolve(), build_job_root())
@@ -791,6 +807,13 @@ class Handler(SimpleHTTPRequestHandler):
 
         if not isinstance(payload, dict):
             error_response(self, 'Expected a JSON object')
+            return
+
+        if parsed.path == '/api/language':
+            try:
+                json_response(self, {'ok': True, 'language': save_language(payload.get('language'))})
+            except OSError as exc:
+                error_response(self, 'Could not save the language setting: ' + str(exc), status=500)
             return
 
         if parsed.path == '/api/pick-model':
