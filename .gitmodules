@@ -1,0 +1,9 @@
+[submodule "tools/RE-Mesh-Editor"]
+	path = tools/RE-Mesh-Editor
+	url = https://github.com/NSACloud/RE-Mesh-Editor.git
+[submodule "vendor/blender_mmd_tools"]
+	path = vendor/blender_mmd_tools
+	url = https://github.com/MMD-Blender/blender_mmd_tools.git
+[submodule "tools/REE.PAK.Tool"]
+	path = tools/REE.PAK.Tool
+	url = https://github.com/Ekey/REE.PAK.Tool.git

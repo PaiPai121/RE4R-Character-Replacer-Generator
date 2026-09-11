@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Python tests
+        working-directory: replacer_app
+        run: python -m unittest test_adjust_endpoint test_dds_fallback test_fluffy_package test_game_resources test_model_directory test_pipeline test_runtime_paths test_static_server
+
+      - name: Build launcher
+        run: dotnet build tools/replacer_launcher/ReplacerLauncher.csproj -c Release
+
+      - name: Build PAK helper
+        run: dotnet build tools/replacer_pak/ReplacerPak.csproj -c Release

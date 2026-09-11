@@ -1,0 +1,117 @@
+using System.Text;
+using System.Text.Json;
+
+namespace RE4RCharacterReplacer;
+
+internal static class NativeModelPicker
+{
+    private static readonly HashSet<string> SupportedExtensions = new(StringComparer.OrdinalIgnoreCase) { ".pmx", ".pmd", ".fbx", ".blend" };
+
+    internal static int Run(string[] args)
+    {
+        var outputPath = Option(args, "--output");
+        if (string.IsNullOrWhiteSpace(outputPath)) return 2;
+        try
+        {
+            var testPath = Environment.GetEnvironmentVariable("REPLACER_PICK_MODEL_TEST_PATH");
+            if (!string.IsNullOrWhiteSpace(testPath))
+                return CompleteSelection(outputPath, testPath, saveDirectory: false);
+
+            using var dialog = new OpenFileDialog {
+                Title = "选择人物模型",
+                Filter = "支持的人物模型 (*.pmx;*.pmd;*.fbx;*.blend)|*.pmx;*.pmd;*.fbx;*.blend|MikuMikuDance 模型 (*.pmx;*.pmd)|*.pmx;*.pmd|FBX 模型 (*.fbx)|*.fbx|Blender 文件 (*.blend)|*.blend",
+                CheckFileExists = true,
+                Multiselect = false,
+                RestoreDirectory = true,
+                AddExtension = true,
+            };
+            var initial = ChooseInitialDirectory(Option(args, "--initial"));
+            if (initial is not null) dialog.InitialDirectory = initial;
+            using var owner = new Form {
+                Text = "RE4R Character Replacer", ShowInTaskbar = false, TopMost = true,
+                FormBorderStyle = FormBorderStyle.None, StartPosition = FormStartPosition.CenterScreen,
+                Size = new Size(1, 1), Opacity = 0,
+            };
+            owner.Show();
+            owner.Activate();
+            var dialogResult = dialog.ShowDialog(owner);
+            owner.Close();
+            if (dialogResult != DialogResult.OK)
+            {
+                WriteResult(outputPath, new { ok = true, cancelled = true });
+                return 0;
+            }
+            return CompleteSelection(outputPath, dialog.FileName);
+        }
+        catch (Exception ex)
+        {
+            try { WriteResult(outputPath, new { ok = false, error = ex.Message }); } catch { }
+            return 1;
+        }
+    }
+
+    private static int CompleteSelection(string outputPath, string selectedPath, bool saveDirectory = true)
+    {
+        var fullPath = Path.GetFullPath(selectedPath);
+        if (!File.Exists(fullPath)) throw new FileNotFoundException("选择的模型文件不存在。", fullPath);
+        if (!SupportedExtensions.Contains(Path.GetExtension(fullPath)))
+            throw new InvalidDataException("请选择 PMX、PMD、FBX 或 BLEND 模型文件。");
+        var directory = Path.GetDirectoryName(fullPath)!;
+        if (saveDirectory)
+        {
+            try { SaveLastDirectory(directory); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException) { }
+        }
+        WriteResult(outputPath, new { ok = true, cancelled = false, path = fullPath, name = Path.GetFileName(fullPath), directory });
+        return 0;
+    }
+
+    private static string? ChooseInitialDirectory(string? requested)
+    {
+        var candidates = new List<string?> { requested };
+        var config = ReadConfig();
+        if (config.TryGetValue("modelDirectory", out var saved)) candidates.Add(saved);
+        candidates.Add(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments));
+        candidates.Add(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory));
+        candidates.Add(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
+        return candidates.FirstOrDefault(path => !string.IsNullOrWhiteSpace(path) && Directory.Exists(path));
+    }
+
+    private static void SaveLastDirectory(string directory)
+    {
+        var config = ReadConfig();
+        config["modelDirectory"] = directory;
+        var configPath = Path.Combine(AppContext.BaseDirectory, "replacer-paths.json");
+        WriteJsonAtomic(configPath, config);
+    }
+
+    private static Dictionary<string, string> ReadConfig()
+    {
+        var configPath = Path.Combine(AppContext.BaseDirectory, "replacer-paths.json");
+        try
+        {
+            return File.Exists(configPath)
+                ? JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(configPath)) ?? new()
+                : new();
+        }
+        catch (Exception ex) when (ex is IOException or JsonException) { return new(); }
+    }
+
+    private static string? Option(string[] args, string name)
+    {
+        for (var index = 0; index < args.Length - 1; index++)
+            if (string.Equals(args[index], name, StringComparison.OrdinalIgnoreCase)) return args[index + 1];
+        return null;
+    }
+
+    private static void WriteResult(string path, object result) => WriteJsonAtomic(path, result);
+
+    private static void WriteJsonAtomic(string path, object value)
+    {
+        var fullPath = Path.GetFullPath(path);
+        Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
+        var temporary = fullPath + "." + Environment.ProcessId + ".tmp";
+        File.WriteAllText(temporary, JsonSerializer.Serialize(value), new UTF8Encoding(false));
+        File.Move(temporary, fullPath, true);
+    }
+}

@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>RE4 · 人物替换</title><link rel="stylesheet" href="/styles.css"></head>
+<body><main class="app">
+<header><div class="wordmark">RESIDENT EVIL <b>4</b></div><h1>人物替换</h1><button id="refreshButton" class="icon" title="刷新界面" aria-label="刷新界面">↻</button></header>
+<div class="workspace"><section class="viewer" aria-label="模型预览">
+<div id="previewStage"><div class="empty-preview"><span class="crosshair">＋</span><p>未选择模型</p></div></div>
+<div id="taskProgress" hidden role="status" aria-live="polite"><p id="taskPhase"></p><progress aria-label="任务进行中"></progress><p id="taskTime"></p><p id="taskHeartbeat"></p></div>
+<div class="view-controls" id="viewControls" hidden><button data-view="front">正面</button><button data-view="back">背面</button><button data-view="side">侧面</button><button data-view="hands">左手</button><button data-view="rightHand">右手</button></div>
+<div class="guide-legend" id="guideLegend" hidden><span class="source-guide">源模型</span><span class="left-guide">目标左侧</span><span class="right-guide">目标右侧</span></div>
+<div class="viewer-caption"><span id="selectedSourceText">—</span><span id="viewLabel">姿势对齐</span></div></section>
+<aside><h2>替换设置</h2>
+<button class="menu-row" id="targetButton"><span>游戏角色</span><strong id="selectedTargetText">选择角色</strong><span>›</span></button>
+<button class="menu-row" id="browseButton"><span>替换模型</span><strong id="sourceLabel">选择模型</strong><span>›</span></button>
+<input id="sourcePath" type="text" aria-label="模型文件路径" placeholder="或输入模型路径" spellcheck="false">
+<div class="separator"></div><div class="status" role="status"><span id="statusText">等待选择</span><progress id="progress" hidden></progress></div>
+<button class="command" id="previewButton" disabled>刷新预览</button><button class="command" id="adjustButton" disabled>在 Blender 中调整 <small>可选</small></button>
+<button class="command primary" id="buildButton" disabled>生成 Mod <span>›</span></button>
+<section id="buildResult" hidden aria-label="生成结果"><p class="result-title">已保存到本机</p><a id="download" class="command" hidden download>下载 Mod</a><label for="outputPath">文件位置</label><textarea id="outputPath" readonly rows="3"></textarea><button id="copyOutput" class="command">复制路径</button></section>
+<details id="diagnostics"><summary>任务记录</summary><pre id="jobBox">尚无任务</pre></details></aside></div>
+<footer><span id="scanStatus">本地资源</span><span id="connectionStatus">连接中</span></footer></main>
+<dialog id="targetDialog"><div class="dialog-heading"><h2>选择游戏角色</h2><button class="icon close" aria-label="关闭">×</button></div><input id="targetSearch" type="search" placeholder="搜索角色" aria-label="搜索角色"><div id="targetList" class="options"></div><details><summary>游戏目录</summary><input id="gamePath" aria-label="游戏目录" spellcheck="false"><button id="scanGameButton" class="command">扫描游戏</button></details></dialog>
+<dialog id="modelDialog"><div class="dialog-heading"><h2>选择模型</h2><button class="icon close" aria-label="关闭">×</button></div>
+<div class="picker-tabs" role="tablist" aria-label="模型来源"><button id="knownModelsTab" role="tab" aria-selected="true" aria-controls="knownModelsPanel">已有模型</button><button id="diskModelsTab" role="tab" aria-selected="false" aria-controls="diskModelsPanel">浏览文件</button></div>
+<div id="knownModelsPanel" role="tabpanel"><input id="modelSearch" type="search" placeholder="搜索模型" aria-label="搜索模型"><div id="modelList" class="options"></div></div>
+<div id="diskModelsPanel" role="tabpanel" hidden><form id="folderForm" class="folder-bar"><button id="parentFolder" type="button" class="icon" title="上一级文件夹" aria-label="上一级文件夹">↑</button><input id="folderPath" aria-label="文件夹路径" spellcheck="false"><button class="icon" type="submit" title="打开文件夹" aria-label="打开文件夹">→</button></form><div id="driveList" class="drive-list" aria-label="磁盘"></div><input id="fileSearch" type="search" placeholder="搜索当前文件夹" aria-label="搜索当前文件夹"><p id="pickerStatus" role="status"></p><div id="fileList" class="options"></div></div>
+</dialog><script src="/app.js"></script></body></html>

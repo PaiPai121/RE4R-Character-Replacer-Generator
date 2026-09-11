@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <ReTools>../REE.PAK.Tool/REE.Unpacker/REE.Unpacker</ReTools>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="Zstandard.Net"><HintPath>$(ReTools)/Libs/Zstandard.Net.dll</HintPath></Reference>
+    <None Include="$(ReTools)/Libs/libzstd.dll"
+          Link="libzstd.dll"
+          CopyToOutputDirectory="PreserveNewest"
+          CopyToPublishDirectory="Always" />
+    <Compile Include="$(ReTools)/FileSystem/Helpers/Helpers.cs;$(ReTools)/FileSystem/Hashing/Murmur3.cs;$(ReTools)/FileSystem/Package/PakChunks.cs;$(ReTools)/FileSystem/Encryption/PakCipher.cs;$(ReTools)/FileSystem/Package/PakEntry.cs;$(ReTools)/FileSystem/Package/PakFlags.cs;$(ReTools)/FileSystem/Package/PakHash.cs;$(ReTools)/FileSystem/Package/PakHeader.cs;$(ReTools)/FileSystem/Encryption/ResourceCipher.cs;$(ReTools)/FileSystem/Compression/ZSTD.cs;$(ReTools)/FileSystem/Compression/DEFLATE.cs" />
+  </ItemGroup>
+</Project>

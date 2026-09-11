@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+
+# .NET / IDE
+**/bin/
+**/obj/
+.vs/
+.idea/
+*.user
+
+# Runtime state and generated output
+release/
+release-verify-*/
+launcher-publish/
+work/
+mod/
+debug/
+reference_leon/
+source_model/
+replacer_app/data/
+replacer_app/presets/
+*.log
+
+# Game, model, archive, and generated binary files
+*.blend
+*.fbx
+*.pmx
+*.pmd
+*.pak
+*.mesh
+*.mesh.*
+*.mdf2
+*.mdf2.*
+*.tex
+*.tex.*
+*.rar
+*.7z
+*.zip
+*.exe
+*.dll
+
+# Local settings
+.DS_Store
+Thumbs.db
+runtime-paths.json
