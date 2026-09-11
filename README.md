@@ -49,6 +49,7 @@ git submodule update --init --recursive
 Run the application tests:
 
 ```powershell
+python -m pip install -r requirements-dev.txt
 cd replacer_app
 python -m unittest test_adjust_endpoint test_dds_fallback test_fluffy_package test_game_resources test_model_directory test_pipeline test_runtime_paths test_static_server
 ```
