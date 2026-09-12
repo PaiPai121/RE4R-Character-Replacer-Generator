@@ -7,6 +7,14 @@ The current preview supports automatic runtime-path discovery with manual overri
 > [!IMPORTANT]
 > This is preview software. Keep backups and inspect generated mods before distributing them. You must own the game and provide your own model files. No game assets or third-party character models are included here.
 
+## 0.4.8 preview fixes
+
+- Character-resource scans now distinguish a game update from a PAK modified by Fluffy Mod Manager.
+- Per-character diagnostics record requested and found resource counts, missing primary mesh/material paths, and matching loose-file evidence.
+- The generator no longer treats third-party loose Mod files as trustworthy original references. Affected characters are skipped before Blender starts, with clear instructions to disable Mods and rescan a clean game installation.
+- PAK extraction failures now identify the archive, batch, exit code, missing paths, and helper output instead of collapsing into a generic compatibility message.
+- A regression test reproduces the reported Leon failure where Fluffy invalidates the original PAK paths while installing replacement files under `natives`.
+
 ## 0.4.7 preview fixes
 
 - The native Windows launcher and browser interface now support complete English and Chinese modes.
