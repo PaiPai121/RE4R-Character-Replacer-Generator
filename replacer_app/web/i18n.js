@@ -24,7 +24,9 @@
       openingBlender:'正在打开 Blender', blenderStarted:'已启动 Blender · 等待姿势保存', buildingMod:'正在生成并校验 Mod', buildMissingPackage:'构建没有返回本次任务的发布包',
       testPackageDone:'测试包已生成 · 待游戏验证', buildDone:'生成完成 · 待游戏验证', restoredWorkspace:'已恢复保存的工作区',
       restoredBuild:'已恢复上次生成结果 · 待游戏验证', lastBuild:'上次生成结果', buildStage:'正在构建并转换模型', validateStage:'正在进行独立导出验证',
-      targetAvailable:'可生成测试包 · 未经游戏内验收', targetUnavailable:'已扫描到资源 · 兼容配置尚不可用',
+      targetAvailable:'可生成测试包 · 未经游戏内验收', targetUnavailable:'角色配置尚未成功生成，请查看扫描任务日志',
+      targetModdedArchive:'检测到 Mod 管理器已修改游戏 PAK。请先在 Fluffy 中卸载全部 RE4 Mod，然后重新扫描。',
+      targetMissingResource:'游戏 PAK 缺少必要的原始角色资源。请在 Steam 验证游戏文件后重新扫描。',
       leon:'里昂', ashley:'艾什莉', ada:'艾达', luis:'路易斯', wesker:'威斯克', merchant:'商人'
     },
     en: {
@@ -51,7 +53,9 @@
       openingBlender:'Opening Blender', blenderStarted:'Blender started · Waiting for the pose to be saved', buildingMod:'Building and validating Mod', buildMissingPackage:'The build did not return a release package for this task.',
       testPackageDone:'Test package generated · In-game validation required', buildDone:'Build complete · In-game validation required', restoredWorkspace:'Restored saved workspace',
       restoredBuild:'Restored the previous build · In-game validation required', lastBuild:'Previous build result', buildStage:'Building and converting model', validateStage:'Running independent export validation',
-      targetAvailable:'Can generate a test package · Not validated in game', targetUnavailable:'Resources found · Compatibility profile unavailable',
+      targetAvailable:'Can generate a test package · Not validated in game', targetUnavailable:'The character profile was not generated. Review the scan task log.',
+      targetModdedArchive:'A Mod manager has modified the game PAK. Uninstall every RE4 Mod in Fluffy, then scan again.',
+      targetMissingResource:'Required original character resources are missing from the game PAK. Verify the game files in Steam, then scan again.',
       leon:'Leon', ashley:'Ashley', ada:'Ada', luis:'Luis', wesker:'Wesker', merchant:'Merchant'
     }
   };
@@ -83,6 +87,12 @@
     ['构建缓存必须位于本机磁盘的绝对路径', 'The build cache must use an absolute path on a local drive.'],
     ['构建缓存路径过长，请设置更短的 REPLACER_BUILD_ROOT', 'The build cache path is too long. Set REPLACER_BUILD_ROOT to a shorter path.'],
     ['无法创建唯一的构建任务目录', 'Could not create a unique build task folder.'],
+    ['检测到必要角色文件存在于 loose natives 目录，但其 PAK 索引项已失效。', 'Required character files exist in the loose natives folder, but their PAK index entries are disabled. '],
+    ['这通常是 Fluffy Mod Manager 已安装 Mod 的结果；为避免把第三方 Mod 当成原始参考，已停止该角色配置。', 'This usually means Fluffy Mod Manager has an installed Mod. The character profile was stopped to avoid using a third-party Mod as the original reference. '],
+    ['请在 Fluffy 中卸载全部 RE4 Mod，必要时在 Steam 验证游戏文件，然后重新扫描。', 'Uninstall every RE4 Mod in Fluffy, verify the game files in Steam if necessary, then scan again.'],
+    ['游戏 PAK 中缺少必要的原始角色资源。', 'Required original character resources are missing from the game PAK. '],
+    ['请在 Steam 验证游戏文件完整性后重新扫描。', 'Verify the game files in Steam, then scan again.'],
+    ['原始资源不可用，已跳过', 'original resources unavailable; skipped'],
     ['游戏索引扫描完成', 'Game index scan complete.'],
     ['全部角色配置均与当前游戏版本匹配，无需重新提取', 'All character profiles already match this game version; no extraction is needed.'],
     ['已完成，跳过', 'complete; skipped'], ['正在准备角色配置', 'Preparing character profile'],

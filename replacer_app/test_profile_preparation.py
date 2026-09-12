@@ -93,6 +93,46 @@ class ProfilePreparationTests(unittest.TestCase):
             self.assertIn('180 秒', job['error'])
             self.assertTrue((root / 'replacer_app/presets/re4_leon/profile.json').is_file())
 
+    def test_scan_skips_character_whose_pak_entry_was_invalidated_by_mod_manager(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            characters = [
+                {'id': 'leon', 'label': 'Leon', 'characterIds': ['cha000']},
+                {'id': 'ashley', 'label': 'Ashley', 'characterIds': ['cha100']},
+            ]
+            fingerprint = [['re_chunk_000.pak', 10, 20]]
+            data = {
+                'game': 'game', 'fingerprint': fingerprint,
+                'resources': {'natives/stm/_chainsaw/character/ch/cha100/00/cha100_00.mesh.221108797': {}},
+                'diagnostics': {'characters': {
+                    'leon': {'primaryAvailable': False, 'issue': 'modded-game-archive'},
+                    'ashley': {'primaryAvailable': True, 'issue': None},
+                }},
+            }
+            calls = []
+
+            def run_character(command, **kwargs):
+                character_id = command[command.index('--character') + 1]
+                calls.append(character_id)
+                character = next(item for item in characters if item['id'] == character_id)
+                self.write_profile(root, character, fingerprint)
+                return CompletedProcess(command, 0, stdout=json.dumps({'prepared': [character_id], 'skipped': []}), stderr='')
+
+            server.JOBS['invalidated-primary-test'] = {'id': 'invalidated-primary-test', 'status': 'queued'}
+            with (patch.object(server, 'PROJECT', root),
+                  patch.object(server, 'BLENDER', Path('blender.exe')),
+                  patch.object(server.game_resources, 'CHARACTERS', characters),
+                  patch.object(server.game_resources, 'scan', return_value=data),
+                  patch.object(server.game_resources, 'extract'),
+                  patch.object(server.subprocess, 'run', side_effect=run_character),
+                  patch.object(server, 'scan_replaceable_characters', return_value=[{'id': 'leon'}, {'id': 'ashley'}])):
+                server.run_scan_job('invalidated-primary-test', {'gamePath': 'game'})
+
+            job = server.JOBS.pop('invalidated-primary-test')
+            self.assertEqual(job['status'], 'complete')
+            self.assertEqual(calls, ['ashley'])
+            self.assertIn('Fluffy Mod Manager', job['stdout'])
+
 
 if __name__ == '__main__':
     unittest.main()

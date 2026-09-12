@@ -57,6 +57,50 @@ def candidates():
     return sorted(set(result))
 
 
+def build_scan_diagnostics(game, requested, found):
+    """Explain incomplete indexes without treating modded loose files as game references."""
+    game = Path(game)
+    found = set(found)
+    characters = {}
+    all_loose_overrides = []
+    for character in CHARACTERS:
+        character_paths = [path for path in requested if any(
+            f'/{character_id}/' in path or path.endswith(f'/{character_id}.skeleton.5')
+            for character_id in character['characterIds'])]
+        primary_mesh = next((path for path in character_paths
+                             if path.endswith(f"/{character['primaryTarget']}_00.mesh.221108797")), None)
+        primary_folder = str(PurePosixPath(primary_mesh).parent) if primary_mesh else ''
+        primary_mdfs = [path for path in character_paths
+                        if str(PurePosixPath(path).parent) == primary_folder and '.mdf2.' in path]
+        missing_primary = ([] if primary_mesh in found else [primary_mesh]) if primary_mesh else []
+        if primary_mdfs and not any(path in found for path in primary_mdfs):
+            missing_primary.append(primary_mdfs[0])
+        missing_primary = [path for path in missing_primary if path]
+        loose_primary = [path for path in missing_primary if (game / Path(path)).is_file()]
+        all_loose_overrides.extend(loose_primary)
+        primary_available = bool(primary_mesh in found and any(path in found for path in primary_mdfs))
+        issue = None
+        if not primary_available:
+            issue = 'modded-game-archive' if loose_primary else 'missing-game-resource'
+        characters[character['id']] = {
+            'requestedCount': len(character_paths),
+            'foundCount': sum(path in found for path in character_paths),
+            'primaryAvailable': primary_available,
+            'missingPrimary': missing_primary,
+            'loosePrimary': loose_primary,
+            'issue': issue,
+        }
+    missing = sorted(set(requested) - found)
+    return {
+        'requestedCount': len(requested),
+        'foundCount': len(found),
+        'missingCount': len(missing),
+        'missing': missing,
+        'looseOverrides': sorted(set(all_loose_overrides)),
+        'characters': characters,
+    }
+
+
 def pak_order(path):
     match = re.search(r'\.patch_(\d+)\.pak$', path.name)
     return int(match[1]) if match else -1
@@ -110,7 +154,8 @@ def scan(game=DEFAULT_GAME, progress=None):
                 resources[path] = dict(item, pak=filename)
     if initial != fingerprint(game):
         raise RuntimeError('游戏文件在扫描期间发生变化，请更新完成后重试')
-    data = dict(game=str(game),fingerprint=initial,resources=resources)
+    data = dict(game=str(game),fingerprint=initial,resources=resources,
+                diagnostics=build_scan_diagnostics(game, paths, resources))
     temporary = run/'index.json'
     temporary.write_text(json.dumps(data,ensure_ascii=False,indent=2),encoding='utf-8')
     os.replace(temporary,INDEX)
@@ -139,8 +184,16 @@ def extract(data, paths, destination, progress=None):
                                      capture_output=True,text=True,timeout=180)
         except subprocess.TimeoutExpired as exc:
             raise RuntimeError(f'参考资源提取在 180 秒内没有完成：{pak}（批次 {index}/{len(batches)}）') from exc
-        if process.returncode != 0 or any(not (destination/p).is_file() for p in batch):
-            raise RuntimeError('参考资源提取失败：'+(process.stderr or process.stdout)[-1000:])
+        missing_outputs = [path for path in batch if not (destination/path).is_file()]
+        if process.returncode != 0 or missing_outputs:
+            output = (process.stderr or process.stdout or '').strip()[-1000:]
+            missing_text = ', '.join(missing_outputs[:6])
+            if len(missing_outputs) > 6:
+                missing_text += f'（另有 {len(missing_outputs)-6} 个）'
+            detail = (f'PAK={pak}，批次 {index}/{len(batches)}，退出代码 {process.returncode}'
+                      + (f'，缺失文件：{missing_text}' if missing_outputs else '')
+                      + (f'。工具输出：{output}' if output else '。解包器没有返回诊断输出'))
+            raise RuntimeError('参考资源提取失败：'+detail)
     return destination
 
 

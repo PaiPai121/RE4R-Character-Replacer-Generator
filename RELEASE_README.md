@@ -82,6 +82,10 @@ $env:RE4_GAME_DIR = 'D:\SteamLibrary\steamapps\common\RESIDENT EVIL 4  BIOHAZARD
 服务仅监听 `127.0.0.1`。运行期间启动器驻留在系统托盘；从托盘菜单选择“退出并停止服务”才会关闭服务。
 如果默认端口已被占用，工具会自动选择后续空闲端口；每个端口均采用独占绑定，避免浏览器误连到其他本地服务。目录浏览已禁用。
 
+### 扫描前请暂时卸载角色 Mod
+
+Fluffy Mod Manager 安装 Mod 时会让原始 PAK 中被替换的条目失效，并把替换文件放到游戏的 `natives` 目录。生成器必须从未修改的原始游戏资源建立兼容配置，不能把其他作者的 Mod 当成原始参考。因此首次扫描或游戏更新后重新扫描前，请先在 Fluffy 中卸载全部 RE4 Mod；如果工具仍提示缺少原始资源，再用 Steam 的“验证游戏文件完整性”修复 PAK，然后重新扫描。扫描并生成兼容配置后，可以重新启用其他 Mod。
+
 ## Preview 限制
 
 - Leon 与 Ashley 通过了完整应用路径和合成姿态回归；Ada、Luis、Wesker、Merchant 仍属于实验支持。
@@ -101,4 +105,4 @@ $env:RE4_GAME_DIR = 'D:\SteamLibrary\steamapps\common\RESIDENT EVIL 4  BIOHAZARD
 
 ## English quick start
 
-This is an experimental local generator, not a character skin mod. It contains no character models, extracted game assets, or prebuilt mods. Install Blender 4.3.2–5.0 or Blender 5.2 LTS (Blender 5.1 is blocked because of its known mesh I/O performance regression), extract the archive, and run `RE4RCharacterReplacer.exe`. The launcher follows your Windows language on first run; use the `中文 / EN` button in the launcher or page header to change it later. Select Blender and your legally installed Steam copy of RE4 (2023), then start the generator. The launcher automatically chooses a free local port. Select a rigged model you are allowed to use, review the pose, and generate a Fluffy Mod Manager ZIP. Leon and Ashley have full application-path regression coverage; other targets remain experimental. Always test generated files in game before publishing.
+This is an experimental local generator, not a character skin mod. It contains no character models, extracted game assets, or prebuilt mods. Install Blender 4.3.2–5.0 or Blender 5.2 LTS (Blender 5.1 is blocked because of its known mesh I/O performance regression), extract the archive, and run `RE4RCharacterReplacer.exe`. The launcher follows your Windows language on first run; use the `中文 / EN` button in the launcher or page header to change it later. Select Blender and your legally installed Steam copy of RE4 (2023), then start the generator. Before the first scan, temporarily uninstall every RE4 Mod in Fluffy Mod Manager so the generator can read unmodified original PAK entries; if resources are still missing, verify the game files in Steam and scan again. The launcher automatically chooses a free local port. Select a rigged model you are allowed to use, review the pose, and generate a Fluffy Mod Manager ZIP. Leon and Ashley have full application-path regression coverage; other targets remain experimental. Always test generated files in game before publishing.

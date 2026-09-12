@@ -313,6 +313,7 @@ def scan_replaceable_characters():
     slot_targets = {target["id"]: target for target in scan_targets()}
     characters = []
     scanned = game_resources.read_index()
+    scan_diagnostics = (scanned or {}).get('diagnostics', {}).get('characters', {})
     for character in game_resources.CHARACTERS:
         item = dict(character)
         item.update(primarySlot='00', verified=False)
@@ -328,9 +329,19 @@ def scan_replaceable_characters():
         item['referenceMesh'] = reference_mesh
         item['bodySlots'] = {cid:['00'] for cid in item['characterIds']
                              if any('/'+cid+'/00/' in path.lower() for path in policy.get('body_meshes',[]))}
-        item['available'] = bool(reference_mesh and Path(reference_mesh).is_file() and policy)
-        item['description'] = '可生成测试包 · 未经游戏内验收' if item['available'] else '已扫描到资源 · 兼容配置尚不可用'
-        item['discovered'] = bool(target or (scanned and any('/'+item['primaryTarget']+'/' in p for p in scanned['resources'])))
+        current_profile = profile_is_current(character, scanned) if scanned else bool(policy)
+        item['available'] = bool(reference_mesh and Path(reference_mesh).is_file() and policy and current_profile)
+        diagnostic = scan_diagnostics.get(character['id'], {})
+        item['issue'] = diagnostic.get('issue') if not item['available'] else None
+        descriptions = {
+            'modded-game-archive': '检测到 Mod 管理器已修改游戏 PAK；请先卸载全部 RE4 Mod，再重新扫描',
+            'missing-game-resource': '游戏 PAK 缺少必要的原始角色资源；请在 Steam 验证游戏文件后重新扫描',
+        }
+        item['description'] = ('可生成测试包 · 未经游戏内验收' if item['available'] else
+                               descriptions.get(item['issue'], '角色配置尚未成功生成，请查看扫描任务日志'))
+        item['scanDiagnostic'] = diagnostic or None
+        item['discovered'] = bool(target or diagnostic or
+                                  (scanned and any('/'+item['primaryTarget']+'/' in p for p in scanned['resources'])))
         item["reference"] = {
             "target": target,
             "primarySlot": primary_slot_data,
@@ -511,7 +522,27 @@ def run_scan_job(job_id, payload):
         data = game_resources.scan(payload.get('gamePath') or game_resources.DEFAULT_GAME, job)
         job['stdout'] = '游戏索引扫描完成'
         characters = game_resources.CHARACTERS
-        pending = [character for character in characters if not profile_is_current(character, data)]
+        character_diagnostics = data.get('diagnostics', {}).get('characters', {})
+        eligible = []
+        for character in characters:
+            diagnostic = character_diagnostics.get(character['id'], {})
+            if diagnostic.get('primaryAvailable', True):
+                eligible.append(character)
+                continue
+            if diagnostic.get('issue') == 'modded-game-archive':
+                append_job_progress(
+                    job,
+                    f"{character['label']}：检测到必要角色文件存在于 loose natives 目录，但其 PAK 索引项已失效。"
+                    '这通常是 Fluffy Mod Manager 已安装 Mod 的结果；为避免把第三方 Mod 当成原始参考，已停止该角色配置。'
+                    '请在 Fluffy 中卸载全部 RE4 Mod，必要时在 Steam 验证游戏文件，然后重新扫描。',
+                )
+            else:
+                append_job_progress(
+                    job,
+                    f"{character['label']}：游戏 PAK 中缺少必要的原始角色资源。"
+                    '请在 Steam 验证游戏文件完整性后重新扫描。',
+                )
+        pending = [character for character in eligible if not profile_is_current(character, data)]
         if pending:
             pending_ids = {value for character in pending for value in character['characterIds']}
             required_paths = [path for path in data['resources']
@@ -526,6 +557,10 @@ def run_scan_job(job_id, payload):
             append_job_progress(job, '全部角色配置均与当前游戏版本匹配，无需重新提取')
         for index, character in enumerate(characters, 1):
             label = character['label']
+            diagnostic = character_diagnostics.get(character['id'], {})
+            if not diagnostic.get('primaryAvailable', True):
+                append_job_progress(job, f'角色配置 {index}/{len(characters)}：{label} 原始资源不可用，已跳过')
+                continue
             if profile_is_current(character, data):
                 append_job_progress(job, f'角色配置 {index}/{len(characters)}：{label} 已完成，跳过')
                 continue

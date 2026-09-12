@@ -48,7 +48,12 @@ function options(root, items, label, select, describe=item=>item.path || item.de
   }
 }
 function targetLabel(item){return t(item.id) || item.label;}
-function targetDescription(item){return item.available?t('targetAvailable'):t('targetUnavailable');}
+function targetDescription(item){
+  if(item.available)return t('targetAvailable');
+  if(item.issue==='modded-game-archive')return t('targetModdedArchive');
+  if(item.issue==='missing-game-resource')return t('targetMissingResource');
+  return t('targetUnavailable');
+}
 function targets() {
   const q=$('targetSearch').value.toLowerCase();
   options($('targetList'),state.targets.filter(item=>`${targetLabel(item)} ${item.label} ${(item.aliases||[]).join(' ')}`.toLowerCase().includes(q)),targetLabel,item=>{

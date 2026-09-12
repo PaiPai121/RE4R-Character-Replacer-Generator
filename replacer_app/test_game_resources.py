@@ -1,6 +1,8 @@
 import unittest
+import tempfile
 from pathlib import Path
 from subprocess import CompletedProcess
+from unittest.mock import patch
 import game_resources as resources
 
 
@@ -31,6 +33,35 @@ class ResourceTests(unittest.TestCase):
         result=CompletedProcess([],0,stdout='Found 0/100 target files',stderr='')
         with self.assertRaisesRegex(RuntimeError,'无效数据'):
             resources.parse_scan_result(result)
+
+    def test_fluffy_invalidated_primary_is_diagnosed_from_loose_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            game = Path(directory)
+            primary = 'natives/stm/_chainsaw/character/ch/cha0/cha000/00/cha000_00.mesh.221108797'
+            mdf = 'natives/stm/_chainsaw/character/ch/cha0/cha000/00/cha000_00.mdf2.32'
+            loose = game / primary
+            loose.parent.mkdir(parents=True)
+            loose.touch()
+            diagnostics = resources.build_scan_diagnostics(game, [primary, mdf], {})
+            leon = diagnostics['characters']['leon']
+            self.assertFalse(leon['primaryAvailable'])
+            self.assertEqual(leon['issue'], 'modded-game-archive')
+            self.assertEqual(leon['loosePrimary'], [primary])
+
+    def test_extract_failure_reports_archive_batch_and_missing_path(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            game = root / 'game'
+            destination = root / 'work' / 'reference'
+            game.mkdir()
+            pak = game / 're_chunk_000.pak'
+            pak.touch()
+            path = 'natives/stm/example.mesh.221108797'
+            data = {'game': str(game), 'resources': {path: {'pak': pak.name, 'size': 1}}}
+            failed = CompletedProcess([], 1, stdout='Found 0/1 target files', stderr='')
+            with patch.object(resources, 'ROOT', root), patch.object(resources.subprocess, 'run', return_value=failed):
+                with self.assertRaisesRegex(RuntimeError, 're_chunk_000.pak.*批次 1/1.*example.mesh'):
+                    resources.extract(data, [path], destination)
 
 
 if __name__=='__main__':unittest.main()
